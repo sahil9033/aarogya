@@ -7,6 +7,7 @@ import joblib
 import os
 import smtplib
 import re
+import html
 import shap
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -252,6 +253,21 @@ section[data-testid="stSidebar"] {
     margin-top: 10px;
     display: block;
 }
+
+/* ── Glass clinical workspace ── */
+:root { --ink: #eff6ff; --muted: #aac0dc; --line: rgba(191, 219, 254, .18); --glass: rgba(11, 29, 58, .62); --aqua: #6ee7e7; }
+.stApp { background: radial-gradient(circle at 8% 5%, rgba(45,114,202,.32), transparent 27rem), radial-gradient(circle at 92% 24%, rgba(55,186,177,.19), transparent 24rem), linear-gradient(135deg, #061225, #0a1b36 55%, #07172c) !important; color: var(--ink) !important; }
+.block-container { max-width: 1240px; padding-top: 1.5rem; }
+section[data-testid="stSidebar"] { background: rgba(4,16,36,.82) !important; backdrop-filter: blur(18px); border-right: 1px solid var(--line); }
+.portal-hero { position: relative; overflow: hidden; background: linear-gradient(115deg, rgba(19,75,142,.8), rgba(27,118,153,.55)); color: white; border: 1px solid rgba(203,233,255,.26); border-radius: 22px; padding: 30px 34px; margin-bottom: 26px; box-shadow: 0 22px 60px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.16); backdrop-filter: blur(18px); }
+.portal-hero:after { content: ''; position: absolute; width: 240px; height: 240px; right: -65px; top: -115px; background: rgba(130,246,230,.19); border-radius: 50%; }
+.portal-hero h1, .portal-hero p, .portal-hero .eyebrow { position: relative; z-index: 1; }
+.portal-hero h1 { font-size: 34px; margin: 7px 0; }.portal-hero p { margin: 0; max-width: 690px; opacity: .92; line-height: 1.55; }.portal-hero .eyebrow, .step-label { font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }.portal-hero .eyebrow, .step-label { color: var(--aqua); }
+.intake-heading { color: #f1f7ff; font-size: 20px; font-weight: 700; margin: 34px 0 3px; }.intake-copy, .section-copy, .stCaption, [data-testid="stCaptionContainer"] { color: var(--muted) !important; }.section-title { color: #f3f8ff; font-size: 19px; font-weight: 700; margin: 0 0 4px; }
+.glass-card, div[data-testid="metric-container"], .status-box, .med-card { background: var(--glass) !important; border: 1px solid var(--line) !important; box-shadow: inset 0 1px rgba(255,255,255,.08), 0 12px 30px rgba(1,9,25,.14); backdrop-filter: blur(18px); }.glass-card { border-radius: 18px; padding: 20px; }.form-hint { background: rgba(110,231,231,.08); color: #c7faf7; border: 1px solid rgba(110,231,231,.2); border-radius: 11px; padding: 10px 12px; font-size: 12px; margin: 4px 0 16px; }
+.stTextInput input, .stNumberInput input, .stTextArea textarea, div[data-baseweb="select"] > div { background: rgba(255,255,255,.07) !important; border: 1px solid rgba(200,225,255,.23) !important; color: #f4f8ff !important; border-radius: 10px !important; }.stTextArea textarea { min-height: 125px; } label, div[data-testid="stWidgetLabel"] p { color: #c2d3e9 !important; font-size: 12px !important; letter-spacing: .01em; text-transform: none; }
+.stButton > button, .stFormSubmitButton > button { background: linear-gradient(110deg, #3b82f6, #18a9b5) !important; border: 1px solid rgba(216,255,255,.28) !important; border-radius: 11px !important; box-shadow: 0 8px 22px rgba(32,136,204,.25); color: white !important; }.stButton > button:hover, .stFormSubmitButton > button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+div[data-testid="stMetricValue"], .status-disease { color: #f4f8ff !important; } div[data-testid="stMetricLabel"] { color: #aac0dc !important; }.status-box { border-radius: 18px; }.disclaimer-box { background: rgba(122,77,13,.27) !important; border-color: rgba(255,204,99,.38) !important; }.disclaimer-box p { color: #ffe6ad !important; } button[data-baseweb="tab"] { color: #a9bfd9 !important; } button[data-baseweb="tab"][aria-selected="true"] { color: #80f2eb !important; border-bottom-color: #80f2eb !important; } [data-testid="stExpander"] { background: rgba(10,31,61,.5); border: 1px solid var(--line); border-radius: 12px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -259,6 +275,22 @@ section[data-testid="stSidebar"] {
 if "diagnosis_triggered" not in st.session_state:
     st.session_state.diagnosis_triggered = False
     st.session_state.results = {}
+if "assessment_history" not in st.session_state:
+    st.session_state.assessment_history = []
+
+with st.sidebar:
+    st.markdown("### Aarogya")
+    st.caption("AI-assisted symptom check-in")
+    st.divider()
+    st.markdown("**How this works**")
+    st.caption("1. Describe symptoms\n\n2. Add optional readings\n\n3. Review the model ranking and separate safety signals")
+    if st.session_state.assessment_history:
+        st.divider()
+        st.markdown("**This session**")
+        for item in st.session_state.assessment_history:
+            st.caption(f"{item['condition']} · {item['confidence']:.0f}% confidence · {item['severity']} safety signal")
+    st.divider()
+    st.caption("Not for emergencies or clinical diagnosis.")
 
 # =========================================================
 # CACHED ASSET LOADING LAYER
@@ -311,39 +343,31 @@ base_true_pool, base_scores_pool = load_base_validation_pool()
 # =========================================================
 # DETACHED NLP SYMPTOM VECTOR ENGINE
 # =========================================================
-def encode_symptoms_to_dict(text, feature_list, vital_features):
+def encode_symptoms_to_dict(text, feature_list, vital_features, selected_symptoms=None):
+    """Create model input from user language; condition selection stays with the trained model."""
     text = text.lower().strip()
-    symptom_map = {
-        "fever": ["fever", "high fever", "temperature"],
-        "cough": ["cough", "coughing"],
-        "headache": ["headache", "migraine"],
-        "chest_pain": ["chest pain", "tight chest", "heart pain"],
-        "shortness_of_breath": ["difficulty breathing", "breathing problem", "shortness of breath"],
-        "rash": ["rash", "skin allergy"],
-        "fatigue": ["fatigue", "weakness", "tired"],
-        "vomiting": ["vomiting", "nausea"],
-        "dizziness": ["dizziness", "dizzy"]
-    }
-    
+    selected_symptoms = {item.lower().strip() for item in (selected_symptoms or [])}
+    aliases = {"shortness of breath": ["difficulty breathing", "breathless", "breathing problem"], "fatigue": ["tired", "weakness", "exhausted"], "dizziness": ["dizzy", "lightheaded"], "vomiting": ["nausea", "throwing up"], "cough": ["coughing"]}
     feature_dict = {}
     for feature in feature_list:
         if feature in vital_features:
             continue
-        
-        found = 0
-        if feature in symptom_map:
-            for keyword in symptom_map[feature]:
-                # Avoid treating phrases such as "no cough" as a present symptom.
-                keyword_pattern = re.escape(keyword)
-                if re.search(rf"(?<!no )(?<!denies ){keyword_pattern}", text):
-                    found = 1
-                    break
-        else:
-            clean_feature = feature.replace("_", " ")
-            if clean_feature in text:
-                found = 1
-        feature_dict[feature] = found
+        phrase = feature.replace("_", " ").lower()
+        candidates = [phrase, *aliases.get(phrase, [])]
+        feature_dict[feature] = int(phrase in selected_symptoms or any(contains_unnegated_phrase(text, candidate) for candidate in candidates))
     return feature_dict
+
+def contains_unnegated_phrase(text, phrase):
+    phrase_pattern = re.escape(phrase)
+    return bool(re.search(rf"(?<!no )(?<!denies ){phrase_pattern}", text.lower()))
+
+def identify_emergency_flags(text):
+    emergency_phrases = ["chest pain", "tight chest", "severe difficulty breathing", "gasping", "choking", "passed out", "unconscious", "not able to get words out"]
+    return [phrase for phrase in emergency_phrases if contains_unnegated_phrase(text, phrase)]
+
+def evaluate_safety_signals(hr, bp, spo2, temp, gluc, symptom_text):
+    checks = [("Very low oxygen reading", spo2 < 90), ("Very high heart rate", hr >= 145), ("Very high temperature", temp >= 39), ("High blood glucose reading", gluc > 200), ("Low blood pressure", bp < 90), ("Chest pain mentioned", contains_unnegated_phrase(symptom_text, "chest pain"))]
+    return [label for label, is_present in checks if is_present]
 
 # =========================================================
 # OUTBOUND SYSTEM UTILITIES (EMAIL & PDF)
@@ -421,45 +445,52 @@ def build_pdf_report(name, age, res_dict):
 # APPLICATION CORE GRAPHICAL UI
 # =========================================================
 st.markdown("""
-<div class='main-title'>AI Health <span class='accent'>Assistant</span></div>
-<div class='sub-title'>
-    A simple tool to help evaluate your symptoms and understand potential health risks.<br>
-    <span class='student-info'>Built by: Onkar Suresh Wagh | Class: MSc Data Science</span>
+<div class='portal-hero'>
+    <div class='eyebrow'>Aarogya · AI-assisted symptom check-in</div>
+    <h1>A clearer first step for your health.</h1>
+    <p>Describe what is happening in your own words. The trained model ranks possible conditions, while a separate safety screen highlights readings that may need prompt care.</p>
 </div>
 """, unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
-with col1:
-    name = st.text_input("Your Name", value="John Doe")
-    age = st.number_input("Age", min_value=1, max_value=120, value=30)
-    hr = st.number_input("Heart Rate (beats per minute)", value=72.0)
-    bp = st.number_input("Top Blood Pressure Number (Systolic)", value=120.0)
+st.markdown("<div class='intake-heading'>Tell us what you’re experiencing</div><div class='intake-copy'>Start with symptoms. Add measurements only if you have recent readings.</div>", unsafe_allow_html=True)
 
-with col2:
-    spo2 = st.number_input("Blood Oxygen Level (%)", value=98.0)
-    temp = st.number_input("Body Temperature (°C)", value=37.0)
-    gluc = st.number_input("Blood Sugar Level (mg/dL)", value=90.0)
-    email = st.text_input("Email to Send Results (Optional)")
-
-symptoms = st.text_area("Describe your symptoms (e.g., 'I have a very bad headache and a high fever')")
-
-with st.expander("Medication safety check (optional)"):
-    st.caption("This is a limited local screening tool, not a complete interaction or allergy check.")
-    current_medicines = st.text_input("Current medicines (separate with commas)", placeholder="e.g., aspirin, metformin")
-    known_conditions = st.text_input("Known conditions (separate with commas)", placeholder="e.g., ulcer, kidney disease")
-    allergies = st.text_input("Medication allergies (separate with commas)", placeholder="e.g., aspirin")
+with st.form("assessment_form", border=False):
+    st.markdown("<div class='glass-card'><div class='step-label'>Step 1 · symptoms</div><div class='section-title'>Your experience, in your words</div><div class='section-copy'>Select what applies, then add context such as when symptoms began or what has changed.</div>", unsafe_allow_html=True)
+    symptom_options = ["fever", "cough", "headache", "chest pain", "shortness of breath", "rash", "fatigue", "vomiting", "dizziness"]
+    selected_symptoms = st.multiselect("Symptoms you have noticed", symptom_options, placeholder="Choose all that apply")
+    symptoms = st.text_area("Add details in your own words", placeholder="Example: Fever since yesterday evening, dry cough, and feeling unusually tired.")
+    st.markdown("<div class='form-hint'>For emergencies, severe or sudden symptoms, or difficulty breathing: seek urgent care now. Do not wait for this check-in.</div></div>", unsafe_allow_html=True)
+    st.markdown("<div class='glass-card' style='margin-top:16px'><div class='step-label'>Step 2 · optional context</div><div class='section-title'>Measurements & report delivery</div><div class='section-copy'>Add recent readings if you have them.</div>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        name = st.text_input("Your name", placeholder="e.g., Alex")
+        age = st.number_input("Age", min_value=1, max_value=120, value=30)
+        hr = st.number_input("Heart rate (beats per minute)", min_value=20.0, max_value=260.0, value=72.0)
+        bp = st.number_input("Systolic blood pressure (mmHg)", min_value=50.0, max_value=250.0, value=120.0)
+    with col2:
+        spo2 = st.number_input("Blood oxygen (SpO₂, %)", min_value=50.0, max_value=100.0, value=98.0)
+        temp = st.number_input("Body temperature (°C)", min_value=30.0, max_value=45.0, value=37.0)
+        gluc = st.number_input("Blood glucose (mg/dL)", min_value=20.0, max_value=800.0, value=90.0)
+        email = st.text_input("Email for report (optional)", placeholder="name@example.com")
+    with st.expander("Medication safety check (optional)"):
+        st.caption("This is a limited local screen, not a complete interaction, dose, or allergy check.")
+        current_medicines = st.text_input("Current medicines (separate with commas)", placeholder="e.g., aspirin, metformin")
+        known_conditions = st.text_input("Known conditions (separate with commas)", placeholder="e.g., ulcer, kidney disease")
+        allergies = st.text_input("Medication allergies (separate with commas)", placeholder="e.g., aspirin")
+    st.markdown("</div>", unsafe_allow_html=True)
+    submitted = st.form_submit_button("Generate my AI summary", use_container_width=True)
 
 # =========================================================
 # COMPUTATION PIPELINE
 # =========================================================
-if st.button("Check My Symptoms"):
-    symptom_text = symptoms.lower()
-    if not symptoms.strip():
-        st.warning("Please describe at least one symptom before checking your results.")
+if submitted:
+    symptom_text = f"{symptoms} {' '.join(selected_symptoms)}".lower()
+    if not symptoms.strip() and not selected_symptoms:
+        st.warning("Select a symptom or add a short description before checking your results.")
         st.stop()
     vital_features = ["age", "hr", "bp", "spo2", "temp", "glucose"]
     
-    feature_dict = encode_symptoms_to_dict(symptoms, assets["features"], vital_features)
+    feature_dict = encode_symptoms_to_dict(symptom_text, assets["features"], vital_features, selected_symptoms)
     feature_dict["age"] = age
     feature_dict["hr"] = hr
     feature_dict["bp"] = bp
@@ -478,30 +509,12 @@ if st.button("Check My Symptoms"):
     ml_prediction = assets["label_encoder"].inverse_transform([pred_index])[0]
     confidence = float(prob[0][pred_index] * 100)
     
-    # Override Framework
+    # The model ranks conditions; safety triage never rewrites its output.
     clinical_prediction = ml_prediction
+    safety_signals = evaluate_safety_signals(hr, bp, spo2, temp, gluc, symptom_text)
     override_reason = None
-    
-    if hr >= 145 or "chest pain" in symptom_text:
-        clinical_prediction = "High Heart Risk"
-        confidence = max(confidence, 96.0)
-        override_reason = "Very high heart rate or chest pain detected"
-    elif gluc > 200:
-        clinical_prediction = "Diabetes / High Blood Sugar"
-        confidence = max(confidence, 95.0)
-        override_reason = "Blood sugar level is dangerously high"
-    elif temp >= 39:
-        clinical_prediction = "Severe Fever"
-        confidence = max(confidence, 90.0)
-        override_reason = "Body temperature is extremely high"
-    elif spo2 < 90:
-        clinical_prediction = "Breathing Trouble"
-        confidence = max(confidence, 92.0)
-        override_reason = "Oxygen levels are dangerously low"
-
-    # Aggregation
-    risk = sum([3 if hr >= 145 or "chest pain" in symptom_text else 0,
-                2 if temp > 39 else 0, 3 if spo2 < 90 else 0, 2 if gluc > 200 else 0])
+    risk_weights = {"Very low oxygen reading": 3, "Very high heart rate": 3, "Very high temperature": 2, "High blood glucose reading": 2, "Low blood pressure": 2, "Chest pain mentioned": 3}
+    risk = min(10, sum(risk_weights[signal] for signal in safety_signals))
     
     news2 = sum([3 if spo2 < 91 else (2 if spo2 < 94 else 0),
                  3 if temp > 39 else (1 if temp > 38 else 0),
@@ -522,6 +535,7 @@ if st.button("Check My Symptoms"):
     medication_warnings, medication_recommendations = check_drugs(
         current_medicines.split(","), known_conditions.split(","), allergies.split(",")
     )
+    emergency_flags = identify_emergency_flags(symptom_text)
     
     live_true = base_true_pool + [live_label]
     live_scores = base_scores_pool + [float(confidence / 100.0)]
@@ -532,14 +546,15 @@ if st.button("Check My Symptoms"):
         "ml_prediction": ml_prediction, "clinical_prediction": clinical_prediction,
         "confidence": confidence, "risk": risk, "news2": news2, "qsofa": qsofa,
         "severity": severity, "status_color": status_color, "status_text": status_text, 
-        "override_reason": override_reason, "symptom_text": symptom_text, 
+        "override_reason": override_reason, "safety_signals": safety_signals, "symptom_text": symptom_text,
         "input_df": input_df, "prob_array": prob[0], "pred_index": pred_index,
         "scaled_input": scaled_input, "live_true": live_true, "live_scores": live_scores,
         "live_pred": live_pred, "cv_scores": cv_scores,
         "medication_warnings": medication_warnings,
-        "medication_recommendations": medication_recommendations
+        "medication_recommendations": medication_recommendations, "emergency_flags": emergency_flags
     }
     st.session_state.diagnosis_triggered = True
+    st.session_state.assessment_history = ([{"condition": clinical_prediction, "confidence": confidence, "severity": severity}] + st.session_state.assessment_history)[:5]
     
     if email:
         send_email(email, name, clinical_prediction, status_text)
@@ -549,13 +564,16 @@ if st.button("Check My Symptoms"):
 # =========================================================
 if st.session_state.diagnosis_triggered:
     res = st.session_state.results
+    if res["emergency_flags"]:
+        st.error("**Emergency warning:** You mentioned " + ", ".join(res["emergency_flags"]) + ". If this is severe, sudden, or ongoing, contact your local emergency service now. Do not wait for this tool's result.")
     
     box_style = f"border-left: 6px solid {res['status_color']};" if "HIGH RISK" in res["status_text"] else ""
     
     st.markdown(f"""
     <div class='status-box' style='{box_style}'>
-        <div style="font-size: 16px; color: #8890aa;">AI Initial Guess: {res['ml_prediction']} ({round(res['confidence'], 2)}% Sure)</div>
-        <div style="font-size: 26px; font-weight: bold; color: {res['status_color']};">Final AI Recommendation: {res['clinical_prediction']}</div>
+        <div style="font-size: 12px; color: #b7cee9; text-transform: uppercase; letter-spacing: .1em;">Model’s leading possibility</div>
+        <div style="font-size: 28px; font-weight: 750; color: #f3f8ff;">{html.escape(str(res['clinical_prediction']))}</div>
+        <div style="font-size: 14px; color: #c0d3e9;">Confidence for this model output: {round(res['confidence'], 2)}% · This is not a diagnosis or a measure of medical urgency.</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -567,9 +585,13 @@ if st.session_state.diagnosis_triggered:
     """, unsafe_allow_html=True)
     
     mc1, mc2, mc3 = st.columns(3)
-    mc1.metric("Health Risk Score (0-10)", res["risk"])
-    mc2.metric("Condition Severity", res["severity"])
-    mc3.metric("AI Certainty", f"{round(res['confidence'], 2)}%")
+    mc1.metric("Safety signal score", f"{res['risk']} / 10")
+    mc2.metric("Urgency signal", res["severity"])
+    mc3.metric("Model confidence", f"{round(res['confidence'], 2)}%")
+    if res["safety_signals"]:
+        st.warning("**Safety signals noted:** " + " · ".join(res["safety_signals"]) + ". These are separate from the model’s condition ranking.")
+    else:
+        st.success("No immediate safety signals were found from the values entered. This does not rule out a health problem.")
     
     st.write("---")
     
