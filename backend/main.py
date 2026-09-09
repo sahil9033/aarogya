@@ -154,16 +154,16 @@ async def analyze_symptoms(
             confidence_score=85.0
         )
     
-    vital_features = ["age", "hr", "bp", "spo2", "temp", "glucose"]
+    vital_features = ["Age", "HeartRate", "BP_Systolic", "SpO2", "Temperature", "Glucose"]
     feature_dict = encode_symptoms_to_dict(symptom_text, features, vital_features, symptom_list)
     
-    # Add vitals
-    feature_dict["age"] = age
-    feature_dict["hr"] = hr
-    feature_dict["bp"] = bp
-    feature_dict["spo2"] = spo2
-    feature_dict["temp"] = temp
-    feature_dict["glucose"] = glucose
+    # Add vitals with exact casing expected by the scaler
+    feature_dict["Age"] = age
+    feature_dict["HeartRate"] = hr
+    feature_dict["BP_Systolic"] = bp
+    feature_dict["SpO2"] = spo2
+    feature_dict["Temperature"] = temp
+    feature_dict["Glucose"] = glucose
     
     expected_features = scaler.feature_names_in_
     input_data = [feature_dict.get(col, 0) for col in expected_features]
