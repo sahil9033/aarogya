@@ -18,6 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const aiReasoningPanel = document.getElementById('ai-reasoning-panel');
     const downloadPdfBtn = document.getElementById('download-pdf-btn');
     
+    // AI Upgrades UI
+    const cotLogs = document.getElementById('cot-logs');
+    const followUpContainer = document.getElementById('follow-up-container');
+    const followUpList = document.getElementById('follow-up-list');
+    
     // Elements to update with results
     const resCauses = document.getElementById('res-causes');
     const resSteps = document.getElementById('res-steps');
@@ -126,7 +131,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Handle submit
+    // Simulated "Chain of Thought" animation
+    function animateCotLogs() {
+        cotLogs.innerHTML = '';
+        const logs = [
+            "> Initializing reasoning engine...",
+            "> Extracting clinical entities from natural language input...",
+            "> Mapping features to Random Forest inputs...",
+            "> Running predictive classification...",
+            "> Evaluating safety signals and critical thresholds...",
+            "> Generating rich text medical synthesis with Gemini 2.5..."
+        ];
+        
+        let i = 0;
+        const interval = setInterval(() => {
+            if (i < logs.length) {
+                const div = document.createElement('div');
+                div.className = 'cot-log-line';
+                div.textContent = logs[i];
+                cotLogs.appendChild(div);
+                i++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 800);
+        return interval; // Return so we can clear if fetch finishes early
+    }
+
+    // Typewriter effect function
+    function typeWriterEffect(element, htmlContent, speed = 10) {
+        element.innerHTML = '';
+        // Hack to support HTML tags in typewriter: parse it and type text nodes
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        // Very basic approach: just set innerHTML since true HTML typing is complex
+        // We'll simulate typing by adding characters to the raw text, but wait, the prompt returns HTML <ul><li>
+        // Since it's a web app, let's just fade the entire block in for a "generation" feel, 
+        // OR type text and then innerHTML it. For now, innerHTML it and rely on CSS animation.
+        element.innerHTML = htmlContent;
+        element.style.opacity = '0';
+        element.style.animation = 'fadeIn 1s forwards';
+    }
+
+    // Main Submit Action
     submitBtn.addEventListener('click', async () => {
         const text = symptomInput.value.trim();
         const selectedSymptoms = Array.from(document.querySelectorAll('.symptom-pill.selected'))
@@ -141,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsSection.classList.add('hidden');
         aiReasoningPanel.classList.add('hidden');
         loadingIndicator.classList.remove('hidden');
+        
+        const cotInterval = animateCotLogs();
 
         try {
             const formData = new FormData();
@@ -171,10 +221,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             currentResultData = data; // Save for PDF
             
-            // Update UI with results
-            resCauses.innerHTML = `<strong>${data.primary_condition}</strong><br><br>${data.possible_causes}`;
-            resSteps.innerHTML = data.next_steps;
-            resCare.innerHTML = data.when_to_seek_care;
+            clearInterval(cotInterval);
+            
+            // Update UI with results (with slight delay for "typing" feel)
+            setTimeout(() => {
+                typeWriterEffect(resCauses, `<strong>${data.primary_condition}</strong><br><br>${data.possible_causes}`);
+                typeWriterEffect(resSteps, data.next_steps);
+                typeWriterEffect(resCare, data.when_to_seek_care);
+            }, 300);
             
             // Update Reasoning Panel
             confidenceBar.style.width = `${data.confidence_score}%`;
@@ -194,8 +248,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 safetySignalsList.appendChild(li);
             }
             
+            // Populate Follow Up Questions
+            followUpList.innerHTML = '';
+            if (data.follow_up_questions && data.follow_up_questions.length > 0) {
+                followUpContainer.classList.remove('hidden');
+                data.follow_up_questions.forEach(q => {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'follow-up-bubble';
+                    bubble.innerHTML = `<i class="fa-solid fa-reply" style="font-size: 11px; margin-right: 6px; opacity: 0.7;"></i> ${q}`;
+                    bubble.addEventListener('click', () => {
+                        // Append question to text area and re-submit
+                        symptomInput.value = symptomInput.value.trim() + "\\n\\n" + "Answering follow-up: " + q + " - ";
+                        symptomInput.focus();
+                        // Scroll to input
+                        symptomInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                    followUpList.appendChild(bubble);
+                });
+            } else {
+                followUpContainer.classList.add('hidden');
+            }
+            
         } catch (error) {
             console.error('Error fetching analysis:', error);
+            clearInterval(cotInterval);
+            
             // Fallback for demo if API fails
             resCauses.innerHTML = `<strong>Likely: Viral Infection</strong><br><br>Based on your symptoms, this seems to be a common viral issue.`;
             resSteps.innerHTML = "Rest, stay hydrated, and take over-the-counter medication.";
@@ -206,7 +283,9 @@ document.addEventListener('DOMContentLoaded', () => {
             resultsSection.classList.remove('hidden');
             
             // Smooth scroll to results
-            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => {
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
         }
     });
 });

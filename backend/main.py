@@ -61,6 +61,7 @@ class AnalysisResponse(BaseModel):
     when_to_seek_care: str
     safety_signals: List[str]
     confidence_score: float
+    follow_up_questions: List[str]
 
 def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str], file_context: str = "") -> dict:
     """Uses Gemini to generate rich text if API key is present, otherwise falls back to templates."""
@@ -80,8 +81,9 @@ def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str],
             1. possible_causes: Briefly explain what this condition is and why the symptoms align with it. Do NOT say 'The ML model says'. Speak directly to the patient (e.g. "Based on your symptoms...").
             2. next_steps: 3-4 bullet points of immediate actionable advice (e.g. rest, hydration).
             3. when_to_seek_care: 2-3 bullet points of warning signs that indicate they need immediate medical attention.
+            4. follow_up_questions: A list of exactly 3 relevant follow-up questions the AI should ask the user to refine or clarify their symptoms (e.g., "Do you also experience sensitivity to light?"). Keep them short.
             
-            Return ONLY a JSON object with keys: "possible_causes", "next_steps", "when_to_seek_care".
+            Return ONLY a JSON object with keys: "possible_causes", "next_steps", "when_to_seek_care", "follow_up_questions".
             """
             
             response = client.models.generate_content(
@@ -101,7 +103,12 @@ def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str],
     return {
         "possible_causes": f"Based on the symptoms described, this resembles a case of <strong>{condition}</strong>. This can cause the symptoms you are experiencing.",
         "next_steps": "<ul><li>Get plenty of rest.</li><li>Stay hydrated by drinking water.</li><li>Monitor your symptoms closely.</li></ul>",
-        "when_to_seek_care": "<ul><li>If symptoms rapidly worsen.</li><li>If you experience difficulty breathing or severe pain.</li><li>If symptoms persist for more than a few days without improvement.</li></ul>"
+        "when_to_seek_care": "<ul><li>If symptoms rapidly worsen.</li><li>If you experience difficulty breathing or severe pain.</li><li>If symptoms persist for more than a few days without improvement.</li></ul>",
+        "follow_up_questions": [
+            "Are there any other symptoms you haven't mentioned?",
+            "How long have you been experiencing this?",
+            "Has the pain or discomfort gotten worse recently?"
+        ]
     }
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
@@ -151,7 +158,8 @@ async def analyze_symptoms(
             next_steps=rich_text["next_steps"],
             when_to_seek_care=rich_text["when_to_seek_care"],
             safety_signals=[],
-            confidence_score=85.0
+            confidence_score=85.0,
+            follow_up_questions=rich_text.get("follow_up_questions", [])
         )
     
     vital_features = ["Age", "HeartRate", "BP_Systolic", "SpO2", "Temperature", "Glucose"]
@@ -191,7 +199,8 @@ async def analyze_symptoms(
         next_steps=rich_text["next_steps"],
         when_to_seek_care=rich_text["when_to_seek_care"],
         safety_signals=safety_signals,
-        confidence_score=confidence_score
+        confidence_score=confidence_score,
+        follow_up_questions=rich_text.get("follow_up_questions", [])
     )
 
 class ReportRequest(BaseModel):

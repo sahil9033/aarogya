@@ -130,8 +130,15 @@
 
             <!-- Loading Indicator -->
             <div id="loading-indicator" class="loading-indicator hidden">
-                <div class="spinner"></div>
-                <p>Analyzing symptoms...</p>
+                <div class="cot-container">
+                    <div class="cot-header">
+                        <i class="fa-solid fa-microchip"></i> AI Engine Processing...
+                    </div>
+                    <div id="cot-logs" class="cot-logs">
+                        <!-- Logs will be inserted here by JS -->
+                    </div>
+                    <div class="spinner-small" style="margin-top: 15px;"></div>
+                </div>
             </div>
 
             <!-- Results Section -->
@@ -153,6 +160,15 @@
                         <div class="card-icon"><i class="fa-regular fa-user"></i></div>
                         <h3>When to Seek Care</h3>
                         <p id="res-care">Know if you should see a doctor now.</p>
+                    </div>
+                </div>
+                
+                <!-- Follow Up Questions -->
+                <div id="follow-up-container" class="follow-up-container">
+                    <h4><i class="fa-solid fa-comment-medical"></i> Follow-up Questions</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">Answer these to help refine your assessment:</p>
+                    <div id="follow-up-list" class="follow-up-list">
+                        <!-- Populated by JS -->
                     </div>
                 </div>
                 
