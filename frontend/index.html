@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinic AI</title>
+    <!-- Use Inter font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo">
+                    <i class="fa-solid fa-plus" style="color: #617A67;"></i>
+                    <h1>Clinic AI</h1>
+                </div>
+                <p class="tagline">Understand Today<br>For a Healthier Tomorrow</p>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Home</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Symptoms</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fa-regular fa-file-lines"></i>
+                    <span>Reports</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fa-regular fa-clock"></i>
+                    <span>History</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fa-solid fa-book-open"></i>
+                    <span>Health Guide</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="privacy-notice">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <div>
+                        <span class="privacy-title">Your privacy</span>
+                        <span class="privacy-subtitle">Our priority</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div class="user-profile">
+                    <div class="avatar">R</div>
+                    <span>Hi, Rahul</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </div>
+            </header>
+
+            <div class="hero-section">
+                <div class="eyebrow">YOUR HEALTH PARTNER, POWERED BY AI</div>
+                <h2 class="main-headline">Describe what's happening.</h2>
+                <h2 class="sub-headline">Get clarity. Take the next step.</h2>
+                <p class="description">Clinic AI analyzes your symptoms and medical context to help you understand possible causes, next steps, and when to seek care.</p>
+            </div>
+
+            <div class="input-section">
+                <div class="input-container">
+                    <textarea id="symptom-input" placeholder="Tell us what you're experiencing...&#10;e.g. I have a fever, headache and sore throat since 2 days"></textarea>
+                    <div class="input-actions">
+                        <button class="icon-btn attachment-btn"><i class="fa-solid fa-paperclip"></i></button>
+                        <button class="icon-btn submit-btn" id="submit-btn"><i class="fa-solid fa-arrow-up"></i></button>
+                    </div>
+                </div>
+
+                <div class="quick-symptoms">
+                    <button class="symptom-pill" data-symptom="Fever">
+                        <span class="pill-icon" style="color: #E24B4A;"><i class="fa-solid fa-temperature-half"></i></span> Fever
+                    </button>
+                    <button class="symptom-pill" data-symptom="Headache">
+                        <span class="pill-icon" style="color: #6670AA;"><i class="fa-solid fa-head-side-virus"></i></span> Headache
+                    </button>
+                    <button class="symptom-pill" data-symptom="Stomach pain">
+                        <span class="pill-icon" style="color: #D68D40;"><i class="fa-solid fa-stomach"></i></span> Stomach pain
+                    </button>
+                    <button class="symptom-pill" data-symptom="Cough">
+                        <span class="pill-icon" style="color: #4A8AE2;"><i class="fa-solid fa-lungs-virus"></i></span> Cough
+                    </button>
+                    <button class="symptom-pill" data-symptom="Skin rash">
+                        <span class="pill-icon" style="color: #A64AE2;"><i class="fa-solid fa-allergies"></i></span> Skin rash
+                    </button>
+                </div>
+                
+                <p class="disclaimer">Not a diagnosis. A smarter starting point.</p>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="loading-indicator hidden">
+                <div class="spinner"></div>
+                <p>Analyzing symptoms...</p>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results-section" class="results-section hidden">
+                <div class="result-cards">
+                    <div class="card causes-card">
+                        <div class="card-icon"><i class="fa-solid fa-chart-simple"></i></div>
+                        <h3>Possible Causes</h3>
+                        <p id="res-causes">See likely reasons based on your input.</p>
+                    </div>
+                    
+                    <div class="card steps-card">
+                        <div class="card-icon"><i class="fa-solid fa-clipboard-list"></i></div>
+                        <h3>Next Steps</h3>
+                        <p id="res-steps">Get clear guidance on what to do.</p>
+                    </div>
+                    
+                    <div class="card care-card">
+                        <div class="card-icon"><i class="fa-regular fa-user"></i></div>
+                        <h3>When to Seek Care</h3>
+                        <p id="res-care">Know if you should see a doctor now.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-decoration">
+                <div class="handwriting">
+                    Better<br>Questions<br>Healthier<br>Days
+                    <svg width="100" height="20" viewBox="0 0 100 20">
+                        <path d="M5,15 Q50,0 95,10" fill="none" stroke="#617A67" stroke-width="1"/>
+                    </svg>
+                </div>
+                <div class="bottom-words">
+                    People<br>Health<br>Possibilities<br><span class="line">—</span>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
