@@ -5,10 +5,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingIndicator = document.getElementById('loading-indicator');
     const resultsSection = document.getElementById('results-section');
     
+    // New UI Elements
+    const toggleVitalsBtn = document.getElementById('toggle-vitals-btn');
+    const vitalsForm = document.getElementById('vitals-form');
+    const attachBtn = document.getElementById('attach-btn');
+    const fileUpload = document.getElementById('file-upload');
+    const attachmentBadge = document.getElementById('attachment-badge');
+    const attachmentName = document.getElementById('attachment-name');
+    const removeAttachmentBtn = document.getElementById('remove-attachment');
+    
+    const toggleReasoningBtn = document.getElementById('toggle-reasoning-btn');
+    const aiReasoningPanel = document.getElementById('ai-reasoning-panel');
+    const downloadPdfBtn = document.getElementById('download-pdf-btn');
+    
     // Elements to update with results
     const resCauses = document.getElementById('res-causes');
     const resSteps = document.getElementById('res-steps');
     const resCare = document.getElementById('res-care');
+    const confidenceBar = document.getElementById('confidence-bar');
+    const confidenceText = document.getElementById('confidence-text');
+    const safetySignalsList = document.getElementById('safety-signals-list');
+
+    let currentResultData = null; // Store for PDF download
+    let attachedFile = null;
 
     // Handle pill click
     symptomPills.forEach(pill => {
@@ -21,13 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTextareaFromPills() {
         const selectedSymptoms = Array.from(document.querySelectorAll('.symptom-pill.selected'))
                                      .map(p => p.getAttribute('data-symptom'));
-        
         let currentText = symptomInput.value;
-        
-        // Remove old auto-added text if it exists (simple implementation)
-        // For a more robust implementation, we'd want to just append to what the user typed
-        
-        // This is a simple implementation: we just append selected pills if they aren't in the text
         selectedSymptoms.forEach(symptom => {
             if (!currentText.toLowerCase().includes(symptom.toLowerCase())) {
                 if (currentText.length > 0 && !currentText.endsWith(' ') && !currentText.endsWith('\n')) {
@@ -36,9 +49,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentText += symptom;
             }
         });
-        
         symptomInput.value = currentText;
     }
+
+    // Toggle Vitals Form
+    toggleVitalsBtn.addEventListener('click', () => {
+        vitalsForm.classList.toggle('hidden');
+        if(!vitalsForm.classList.contains('hidden')) {
+            toggleVitalsBtn.style.color = '#1a56db';
+        } else {
+            toggleVitalsBtn.style.color = '';
+        }
+    });
+
+    // File Attachment
+    attachBtn.addEventListener('click', () => {
+        fileUpload.click();
+    });
+
+    fileUpload.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            attachedFile = e.target.files[0];
+            attachmentName.textContent = attachedFile.name;
+            attachmentBadge.classList.remove('hidden');
+            attachBtn.style.color = '#1a56db';
+        }
+    });
+
+    removeAttachmentBtn.addEventListener('click', () => {
+        attachedFile = null;
+        fileUpload.value = '';
+        attachmentBadge.classList.add('hidden');
+        attachBtn.style.color = '';
+    });
+
+    // Toggle Reasoning
+    toggleReasoningBtn.addEventListener('click', () => {
+        aiReasoningPanel.classList.toggle('hidden');
+    });
+
+    // Handle PDF Download
+    downloadPdfBtn.addEventListener('click', async () => {
+        if (!currentResultData) return;
+        
+        const originalText = downloadPdfBtn.innerHTML;
+        downloadPdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+        
+        try {
+            const response = await fetch('/api/report/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    condition: currentResultData.primary_condition,
+                    confidence: currentResultData.confidence_score,
+                    causes: currentResultData.possible_causes,
+                    steps: currentResultData.next_steps,
+                    care: currentResultData.when_to_seek_care,
+                    safety_signals: currentResultData.safety_signals
+                })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ClinicAI_Report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
+        } catch (e) {
+            console.error('Failed to download PDF', e);
+        } finally {
+            downloadPdfBtn.innerHTML = originalText;
+        }
+    });
 
     // Handle submit
     submitBtn.addEventListener('click', async () => {
@@ -46,26 +132,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedSymptoms = Array.from(document.querySelectorAll('.symptom-pill.selected'))
                                      .map(p => p.getAttribute('data-symptom'));
                                      
-        if (!text && selectedSymptoms.length === 0) {
-            alert('Please describe your symptoms or select a symptom pill.');
+        if (!text && selectedSymptoms.length === 0 && !attachedFile) {
+            alert('Please describe your symptoms, select a symptom pill, or attach a document.');
             return;
         }
 
         // Show loading
         resultsSection.classList.add('hidden');
+        aiReasoningPanel.classList.add('hidden');
         loadingIndicator.classList.remove('hidden');
 
         try {
-            // Replace with actual API call to FastAPI backend
+            const formData = new FormData();
+            formData.append('symptoms', text);
+            formData.append('selected_symptoms', selectedSymptoms.join(','));
+            
+            // Append vitals
+            formData.append('age', document.getElementById('age-input').value);
+            formData.append('hr', document.getElementById('hr-input').value);
+            formData.append('bp', document.getElementById('bp-input').value);
+            formData.append('spo2', document.getElementById('spo2-input').value);
+            formData.append('temp', document.getElementById('temp-input').value);
+            formData.append('glucose', document.getElementById('glucose-input').value);
+            
+            if (attachedFile) {
+                formData.append('file', attachedFile);
+            }
+
             const response = await fetch('/api/analyze', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    symptoms: text,
-                    selected_symptoms: selectedSymptoms
-                })
+                body: formData // No Content-Type header so the browser sets the boundary automatically
             });
 
             if (!response.ok) {
@@ -73,18 +169,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
+            currentResultData = data; // Save for PDF
             
             // Update UI with results
             resCauses.innerHTML = `<strong>${data.primary_condition}</strong><br><br>${data.possible_causes}`;
             resSteps.innerHTML = data.next_steps;
             resCare.innerHTML = data.when_to_seek_care;
             
+            // Update Reasoning Panel
+            confidenceBar.style.width = `${data.confidence_score}%`;
+            confidenceText.innerHTML = `<strong>${data.confidence_score.toFixed(1)}%</strong> match with <strong>${data.primary_condition}</strong>`;
+            
+            safetySignalsList.innerHTML = '';
+            if (data.safety_signals && data.safety_signals.length > 0) {
+                data.safety_signals.forEach(sig => {
+                    const li = document.createElement('li');
+                    li.textContent = sig;
+                    li.style.color = '#E24B4A';
+                    safetySignalsList.appendChild(li);
+                });
+            } else {
+                const li = document.createElement('li');
+                li.textContent = 'No critical vital signs detected.';
+                safetySignalsList.appendChild(li);
+            }
+            
         } catch (error) {
             console.error('Error fetching analysis:', error);
             // Fallback for demo if API fails
             resCauses.innerHTML = `<strong>Likely: Viral Infection</strong><br><br>Based on your symptoms, this seems to be a common viral issue.`;
-            resSteps.innerHTML = "Rest, stay hydrated, and take over-the-counter medication to manage fever and pain.";
-            resCare.innerHTML = "If symptoms persist for more than 3-4 days, or if you experience difficulty breathing, seek immediate care.";
+            resSteps.innerHTML = "Rest, stay hydrated, and take over-the-counter medication.";
+            resCare.innerHTML = "If symptoms persist for more than 3-4 days, seek immediate care.";
         } finally {
             // Hide loading, show results
             loadingIndicator.classList.add('hidden');

@@ -466,3 +466,125 @@ textarea::placeholder {
 
 /* Add cursive font */
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap');
+
+/* ---------------------------------
+   NEW FEATURES (Vitals & Reasoning)
+   --------------------------------- */
+.vitals-form {
+    background: var(--bg-sidebar);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.vital-input label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.vital-input input {
+    width: 100%;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+}
+
+.left-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn-small {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+}
+
+.attachment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #E6EAF2;
+    color: #4A6CA5;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 12px;
+}
+
+.results-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    justify-content: center;
+}
+
+.secondary-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.secondary-btn:hover {
+    background: var(--bg-sidebar);
+}
+
+.ai-reasoning-panel {
+    background: var(--bg-sidebar);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 16px;
+    border: 1px solid var(--border-color);
+}
+
+.confidence-bar-container {
+    width: 100%;
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 4px;
+    margin: 8px 0;
+    overflow: hidden;
+}
+
+.confidence-bar {
+    height: 100%;
+    background: #4A6CA5;
+    border-radius: 4px;
+    transition: width 1s ease-out;
+}
+
+.safety-signals-list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.safety-signals-list li {
+    margin-bottom: 4px;
+}

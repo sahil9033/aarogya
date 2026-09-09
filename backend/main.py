@@ -2,14 +2,16 @@ import os
 import joblib
 import pandas as pd
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional
 from google import genai
 from google.genai import types
+from fpdf import FPDF
+import datetime
 from nlp_utils import encode_symptoms_to_dict, evaluate_safety_signals
 
 app = FastAPI(title="Clinic AI API")
@@ -58,8 +60,9 @@ class AnalysisResponse(BaseModel):
     next_steps: str
     when_to_seek_care: str
     safety_signals: List[str]
+    confidence_score: float
 
-def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str]) -> dict:
+def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str], file_context: str = "") -> dict:
     """Uses Gemini to generate rich text if API key is present, otherwise falls back to templates."""
     api_key = os.environ.get("GEMINI_API_KEY")
     
@@ -70,6 +73,8 @@ def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str])
             A patient presents with these symptoms: "{symptoms}".
             A machine learning model has classified their likely primary condition as: "{condition}".
             Safety signals identified: {', '.join(safety_signals) if safety_signals else 'None'}.
+            
+            Additional context from attached medical document: "{file_context}"
             
             Based on this, please provide three concise, empathetic, and medically sound paragraphs for a patient-facing app:
             1. possible_causes: Briefly explain what this condition is and why the symptoms align with it. Do NOT say 'The ML model says'. Speak directly to the patient (e.g. "Based on your symptoms...").
@@ -100,30 +105,65 @@ def generate_rich_text(condition: str, symptoms: str, safety_signals: List[str])
     }
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
-async def analyze_symptoms(req: SymptomRequest):
-    symptom_text = f"{req.symptoms} {' '.join(req.selected_symptoms)}".lower()
+async def analyze_symptoms(
+    symptoms: str = Form(""),
+    selected_symptoms: str = Form(""),
+    age: int = Form(30),
+    hr: float = Form(72.0),
+    bp: float = Form(120.0),
+    spo2: float = Form(98.0),
+    temp: float = Form(37.0),
+    glucose: float = Form(90.0),
+    file: Optional[UploadFile] = File(None)
+):
+    # Parse selected symptoms
+    symptom_list = [s.strip() for s in selected_symptoms.split(",")] if selected_symptoms else []
+    symptom_text = f"{symptoms} {' '.join(symptom_list)}".lower()
     
+    file_context = ""
+    # Process file if attached
+    if file and file.filename:
+        try:
+            content = await file.read()
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if api_key:
+                client = genai.Client(api_key=api_key)
+                # Quick parse of text using Gemini
+                prompt = "Extract the key medical findings, diagnoses, or lab results from this document concisely."
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=[
+                        types.Part.from_bytes(data=content, mime_type=file.content_type),
+                        prompt
+                    ]
+                )
+                file_context = response.text
+                symptom_text += f" [Attached Document Summary: {file_context}]"
+        except Exception as e:
+            print(f"File processing error: {e}")
+
     if not model:
         # Mock response if model wasn't loaded
-        rich_text = generate_rich_text("General Viral Infection", symptom_text, [])
+        rich_text = generate_rich_text("General Viral Infection", symptom_text, [], file_context)
         return AnalysisResponse(
             primary_condition="General Viral Infection",
             possible_causes=rich_text["possible_causes"],
             next_steps=rich_text["next_steps"],
             when_to_seek_care=rich_text["when_to_seek_care"],
-            safety_signals=[]
+            safety_signals=[],
+            confidence_score=85.0
         )
     
     vital_features = ["age", "hr", "bp", "spo2", "temp", "glucose"]
-    feature_dict = encode_symptoms_to_dict(symptom_text, features, vital_features, req.selected_symptoms)
+    feature_dict = encode_symptoms_to_dict(symptom_text, features, vital_features, symptom_list)
     
     # Add vitals
-    feature_dict["age"] = req.age
-    feature_dict["hr"] = req.hr
-    feature_dict["bp"] = req.bp
-    feature_dict["spo2"] = req.spo2
-    feature_dict["temp"] = req.temp
-    feature_dict["glucose"] = req.glucose
+    feature_dict["age"] = age
+    feature_dict["hr"] = hr
+    feature_dict["bp"] = bp
+    feature_dict["spo2"] = spo2
+    feature_dict["temp"] = temp
+    feature_dict["glucose"] = glucose
     
     expected_features = scaler.feature_names_in_
     input_data = [feature_dict.get(col, 0) for col in expected_features]
@@ -134,11 +174,12 @@ async def analyze_symptoms(req: SymptomRequest):
     prob = model.predict_proba(scaled_input)
     pred_index = np.argmax(prob[0])
     ml_prediction = label_encoder.inverse_transform([pred_index])[0]
+    confidence_score = float(prob[0][pred_index] * 100)
     
     safety_signals = evaluate_safety_signals(symptom_text)
     
     # Generative AI Enrichment
-    rich_text = generate_rich_text(ml_prediction, symptom_text, safety_signals)
+    rich_text = generate_rich_text(ml_prediction, symptom_text, safety_signals, file_context)
     
     # Check if safety signals exist and override
     if safety_signals:
@@ -149,8 +190,65 @@ async def analyze_symptoms(req: SymptomRequest):
         possible_causes=rich_text["possible_causes"],
         next_steps=rich_text["next_steps"],
         when_to_seek_care=rich_text["when_to_seek_care"],
-        safety_signals=safety_signals
+        safety_signals=safety_signals,
+        confidence_score=confidence_score
     )
+
+class ReportRequest(BaseModel):
+    condition: str
+    confidence: float
+    causes: str
+    steps: str
+    care: str
+    safety_signals: List[str]
+
+@app.post("/api/report/download")
+async def download_report(req: ReportRequest):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Clinic AI Assessment Report", ln=1, align="C")
+    
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 10, f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=1, align="C")
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Primary Assessment", ln=1)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 10, f"Condition: {req.condition} (Model Confidence: {req.confidence:.1f}%)", ln=1)
+    pdf.ln(5)
+    
+    if req.safety_signals:
+        pdf.set_font("Arial", "B", 12)
+        pdf.set_text_color(226, 75, 74) # Red
+        pdf.cell(0, 10, "Safety Signals Noted:", ln=1)
+        pdf.set_font("Arial", "", 12)
+        for sig in req.safety_signals:
+            pdf.cell(0, 8, f"- {sig}", ln=1)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+        
+    def add_section(title, text):
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, title, ln=1)
+        pdf.set_font("Arial", "", 11)
+        # Clean HTML tags very roughly
+        clean_text = text.replace("<strong>", "").replace("</strong>", "").replace("<ul>", "").replace("</ul>", "").replace("<li>", "- ").replace("</li>", "\n").replace("<br>", "\n")
+        pdf.multi_cell(0, 6, clean_text)
+        pdf.ln(5)
+        
+    add_section("Possible Causes", req.causes)
+    add_section("Next Steps", req.steps)
+    add_section("When to Seek Care", req.care)
+    
+    pdf.ln(10)
+    pdf.set_font("Arial", "I", 9)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(0, 5, "DISCLAIMER: This report is generated by an Artificial Intelligence program. It is NOT a real clinical diagnosis and should not replace professional medical advice. Always visit a doctor for evaluation and proper medical treatment.")
+    
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=ClinicAI_Report.pdf"})
 
 # Serve the frontend statically
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
