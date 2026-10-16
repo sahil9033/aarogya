@@ -159,17 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Typewriter effect function
-    function typeWriterEffect(element, htmlContent, speed = 10) {
-        element.innerHTML = '';
-        // Hack to support HTML tags in typewriter: parse it and type text nodes
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        
-        // Very basic approach: just set innerHTML since true HTML typing is complex
-        // We'll simulate typing by adding characters to the raw text, but wait, the prompt returns HTML <ul><li>
-        // Since it's a web app, let's just fade the entire block in for a "generation" feel, 
-        // OR type text and then innerHTML it. For now, innerHTML it and rely on CSS animation.
-        element.innerHTML = htmlContent;
+    function typeWriterEffect(element, content) {
+        // API and document-derived text must never become executable page markup.
+        element.replaceChildren();
+        const parsed = document.createElement('div');
+        parsed.innerHTML = content;
+        element.textContent = parsed.textContent || content;
         element.style.opacity = '0';
         element.style.animation = 'fadeIn 1s forwards';
     }
@@ -192,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const cotInterval = animateCotLogs();
 
+        let completed = false;
         try {
             const formData = new FormData();
             formData.append('symptoms', text);
@@ -220,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             currentResultData = data; // Save for PDF
+            completed = true;
             
             clearInterval(cotInterval);
             
@@ -255,7 +252,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.follow_up_questions.forEach(q => {
                     const bubble = document.createElement('div');
                     bubble.className = 'follow-up-bubble';
-                    bubble.innerHTML = `<i class="fa-solid fa-reply" style="font-size: 11px; margin-right: 6px; opacity: 0.7;"></i> ${q}`;
+                    const icon = document.createElement('i');
+                    icon.className = 'fa-solid fa-reply';
+                    icon.style.cssText = 'font-size: 11px; margin-right: 6px; opacity: 0.7;';
+                    bubble.append(icon, document.createTextNode(q));
                     bubble.addEventListener('click', () => {
                         // Append question to text area and re-submit
                         symptomInput.value = symptomInput.value.trim() + "\\n\\n" + "Answering follow-up: " + q + " - ";
@@ -273,19 +273,14 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error fetching analysis:', error);
             clearInterval(cotInterval);
             
-            // Fallback for demo if API fails
-            resCauses.innerHTML = `<strong>Likely: Viral Infection</strong><br><br>Based on your symptoms, this seems to be a common viral issue.`;
-            resSteps.innerHTML = "Rest, stay hydrated, and take over-the-counter medication.";
-            resCare.innerHTML = "If symptoms persist for more than 3-4 days, seek immediate care.";
+            alert('We could not complete your symptom check. Please try again. No assessment was generated.');
         } finally {
             // Hide loading, show results
             loadingIndicator.classList.add('hidden');
-            resultsSection.classList.remove('hidden');
+            if (completed) resultsSection.classList.remove('hidden');
             
             // Smooth scroll to results
-            setTimeout(() => {
-                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
+            if (completed) setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
         }
     });
 });

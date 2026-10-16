@@ -181,10 +181,12 @@ async def analyze_symptoms(
     scaled_input = scaler.transform(input_df)
     prob = model.predict_proba(scaled_input)
     pred_index = np.argmax(prob[0])
-    ml_prediction = label_encoder.inverse_transform([pred_index])[0]
+    # Classifier columns are keyed by model.classes_, not necessarily by position.
+    model_class = getattr(model, "classes_", np.arange(prob.shape[1]))[pred_index]
+    ml_prediction = label_encoder.inverse_transform([model_class])[0]
     confidence_score = float(prob[0][pred_index] * 100)
     
-    safety_signals = evaluate_safety_signals(symptom_text)
+    safety_signals = evaluate_safety_signals(symptom_text, hr, bp, spo2, temp, glucose)
     
     # Generative AI Enrichment
     rich_text = generate_rich_text(ml_prediction, symptom_text, safety_signals, file_context)
