@@ -13,197 +13,110 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
+        <!-- Top Navigation -->
+        <header class="topbar">
             <div class="brand">
                 <div class="logo">
-                    <i class="fa-solid fa-plus" style="color: #617A67;"></i>
-                    <h1>Clinic AI</h1>
+                    <h1>clinic ai</h1>
                 </div>
-                <p class="tagline">Understand Today<br>For a Healthier Tomorrow</p>
             </div>
-
             <nav class="nav-menu">
-                <a href="#" class="nav-item active">
-                    <i class="fa-solid fa-house"></i>
-                    <span>Home</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <span>Symptoms</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="fa-regular fa-file-lines"></i>
-                    <span>Reports</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="fa-regular fa-clock"></i>
-                    <span>History</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="fa-solid fa-book-open"></i>
-                    <span>Health Guide</span>
-                </a>
+                <a href="#" class="nav-item active">Home</a>
+                <a href="#" class="nav-item">Symptoms</a>
+                <a href="#" class="nav-item">Reports</a>
+                <a href="#" class="nav-item">History</a>
+                <a href="#" class="nav-item">Guide</a>
             </nav>
-
-            <div class="sidebar-footer">
-                <div class="privacy-notice">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    <div>
-                        <span class="privacy-title">Your privacy</span>
-                        <span class="privacy-subtitle">Our priority</span>
-                    </div>
-                </div>
+            <div class="header-actions">
+                <a href="#" class="btn-pill btn-dark">Log In</a>
+                <a href="#" class="btn-pill btn-light">Contact Us</a>
             </div>
-        </aside>
+        </header>
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="topbar">
-                <div class="user-profile">
-                    <div class="avatar">R</div>
-                    <span>Hi, Rahul</span>
-                    <i class="fa-solid fa-chevron-down"></i>
-                </div>
-            </header>
-
             <div class="hero-section">
-                <div class="eyebrow">YOUR HEALTH PARTNER, POWERED BY AI</div>
-                <h2 class="main-headline">Describe what's happening.</h2>
-                <h2 class="sub-headline">Get clarity. Take the next step.</h2>
-                <p class="description">Clinic AI analyzes your symptoms and medical context to help you understand possible causes, next steps, and when to seek care.</p>
+                <div class="flourish">
+                    <svg viewBox="0 0 100 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 10C30 5 70 5 90 10" stroke="white" stroke-width="0.5" stroke-linecap="round"/>
+                        <path d="M20 15C40 10 60 10 80 15" stroke="white" stroke-width="0.5" stroke-linecap="round"/>
+                        <circle cx="50" cy="5" r="1" fill="white"/>
+                    </svg>
+                </div>
+                <div class="eyebrow">Aarogya · AI-assisted symptom check-in</div>
+                <h1 class="main-headline">Clinical AI for everyone.</h1>
+                <p class="description">Built on frontier-class medical models. Delivering population-scale health impact. Describe your symptoms to get started.</p>
+                <div class="hero-actions">
+                    <a href="#symptom-input" class="btn-pill btn-light" style="margin-right: 12px;">Get Started</a>
+                    <a href="#" class="btn-pill btn-dark">Learn More</a>
+                </div>
             </div>
 
             <div class="input-section">
                 <div class="input-container">
-                    <textarea id="symptom-input" placeholder="Tell us what you're experiencing...&#10;e.g. I have a fever, headache and sore throat since 2 days"></textarea>
-                    
-                    <!-- Vitals Form (Hidden by default) -->
-                    <div id="vitals-form" class="vitals-form hidden">
-                        <div class="vitals-grid">
-                            <div class="vital-input"><label>Age</label><input type="number" id="age-input" value="30"></div>
-                            <div class="vital-input"><label>Heart Rate (bpm)</label><input type="number" id="hr-input" value="72"></div>
-                            <div class="vital-input"><label>Systolic BP (mmHg)</label><input type="number" id="bp-input" value="120"></div>
-                            <div class="vital-input"><label>SpO2 (%)</label><input type="number" id="spo2-input" value="98"></div>
-                            <div class="vital-input"><label>Temp (°C)</label><input type="number" id="temp-input" value="37.0" step="0.1"></div>
-                            <div class="vital-input"><label>Glucose (mg/dL)</label><input type="number" id="glucose-input" value="90"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- File Attachment UI -->
-                    <div id="attachment-badge" class="attachment-badge hidden">
-                        <i class="fa-solid fa-file-medical"></i> <span id="attachment-name">Document attached</span>
-                        <button id="remove-attachment" class="icon-btn-small"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    
-                    <input type="file" id="file-upload" accept="image/*,.pdf" style="display: none;">
-
+                    <textarea id="symptom-input" placeholder="Tell us what you're experiencing in your own words..."></textarea>
                     <div class="input-actions">
-                        <div class="left-actions">
-                            <button class="icon-btn attachment-btn" id="attach-btn" title="Attach Medical Document"><i class="fa-solid fa-paperclip"></i></button>
-                            <button class="icon-btn vitals-btn" id="toggle-vitals-btn" title="Add Vitals & Context"><i class="fa-solid fa-heart-pulse"></i></button>
-                        </div>
-                        <button class="icon-btn submit-btn" id="submit-btn" title="Analyze"><i class="fa-solid fa-arrow-up"></i></button>
+                        <span class="input-hint">Add symptoms or choose below</span>
+                        <button class="submit-btn" id="submit-btn" type="button" aria-label="Analyze symptoms">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </button>
                     </div>
                 </div>
+
+                <details class="vitals-panel">
+                    <summary>Measurements & Report Context <span>(Optional)</span></summary>
+                    <div class="vitals-grid">
+                        <label>Age <input id="age" type="number" min="1" max="120" value="30"></label>
+                        <label>Heart rate <input id="hr" type="number" min="20" max="260" value="72"></label>
+                        <label>Blood pressure <input id="bp" type="number" min="50" max="250" value="120"></label>
+                        <label>Oxygen level <input id="spo2" type="number" min="50" max="100" value="98"></label>
+                        <label>Temperature °C <input id="temp" type="number" min="30" max="45" step="0.1" value="37"></label>
+                        <label>Glucose <input id="glucose" type="number" min="20" max="800" value="90"></label>
+                    </div>
+                </details>
 
                 <div class="quick-symptoms">
-                    <button class="symptom-pill" data-symptom="Fever">
-                        <span class="pill-icon" style="color: #E24B4A;"><i class="fa-solid fa-temperature-half"></i></span> Fever
-                    </button>
-                    <button class="symptom-pill" data-symptom="Headache">
-                        <span class="pill-icon" style="color: #6670AA;"><i class="fa-solid fa-head-side-virus"></i></span> Headache
-                    </button>
-                    <button class="symptom-pill" data-symptom="Stomach pain">
-                        <span class="pill-icon" style="color: #D68D40;"><i class="fa-solid fa-stomach"></i></span> Stomach pain
-                    </button>
-                    <button class="symptom-pill" data-symptom="Cough">
-                        <span class="pill-icon" style="color: #4A8AE2;"><i class="fa-solid fa-lungs-virus"></i></span> Cough
-                    </button>
-                    <button class="symptom-pill" data-symptom="Skin rash">
-                        <span class="pill-icon" style="color: #A64AE2;"><i class="fa-solid fa-allergies"></i></span> Skin rash
-                    </button>
-                </div>
-                
-                <p class="disclaimer">Not a diagnosis. A smarter starting point.</p>
-            </div>
-
-            <!-- Loading Indicator -->
-            <div id="loading-indicator" class="loading-indicator hidden">
-                <div class="cot-container">
-                    <div class="cot-header">
-                        <i class="fa-solid fa-microchip"></i> AI Engine Processing...
-                    </div>
-                    <div id="cot-logs" class="cot-logs">
-                        <!-- Logs will be inserted here by JS -->
-                    </div>
-                    <div class="spinner-small" style="margin-top: 15px;"></div>
+                    <button class="symptom-pill" data-symptom="Fever">Fever</button>
+                    <button class="symptom-pill" data-symptom="Headache">Headache</button>
+                    <button class="symptom-pill" data-symptom="Stomach pain">Stomach pain</button>
+                    <button class="symptom-pill" data-symptom="Cough">Cough</button>
+                    <button class="symptom-pill" data-symptom="Skin rash">Skin rash</button>
                 </div>
             </div>
 
-            <!-- Results Section -->
-            <div id="results-section" class="results-section hidden">
+            <p id="form-error" class="form-error hidden" role="alert"></p>
+
+            <div id="loading-indicator" class="loading-indicator hidden" role="status" aria-live="polite">
+                <div class="spinner"></div>
+                <p>Analyzing symptoms...</p>
+            </div>
+
+            <div id="results-section" class="results-section hidden" aria-live="polite">
+                <div id="urgency-banner" class="urgency-banner hidden"></div>
                 <div class="result-cards">
                     <div class="card causes-card">
                         <div class="card-icon"><i class="fa-solid fa-chart-simple"></i></div>
                         <h3>Possible Causes</h3>
-                        <p id="res-causes">See likely reasons based on your input.</p>
+                        <p id="res-causes"></p>
+                        <p id="res-alternatives" class="alternatives"></p>
                     </div>
                     
                     <div class="card steps-card">
                         <div class="card-icon"><i class="fa-solid fa-clipboard-list"></i></div>
                         <h3>Next Steps</h3>
-                        <p id="res-steps">Get clear guidance on what to do.</p>
+                        <ul id="res-steps"></ul>
                     </div>
                     
                     <div class="card care-card">
                         <div class="card-icon"><i class="fa-regular fa-user"></i></div>
                         <h3>When to Seek Care</h3>
-                        <p id="res-care">Know if you should see a doctor now.</p>
-                    </div>
-                </div>
-                
-                <!-- Follow Up Questions -->
-                <div id="follow-up-container" class="follow-up-container">
-                    <h4><i class="fa-solid fa-comment-medical"></i> Follow-up Questions</h4>
-                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">Answer these to help refine your assessment:</p>
-                    <div id="follow-up-list" class="follow-up-list">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-                
-                <!-- AI Reasoning & Download -->
-                <div class="results-actions">
-                    <button class="secondary-btn" id="toggle-reasoning-btn"><i class="fa-solid fa-brain"></i> View AI Reasoning</button>
-                    <button class="secondary-btn" id="download-pdf-btn"><i class="fa-solid fa-download"></i> Download Report</button>
-                </div>
-                
-                <div id="ai-reasoning-panel" class="ai-reasoning-panel hidden">
-                    <div class="reasoning-content">
-                        <h4>Model Confidence Score</h4>
-                        <div class="confidence-bar-container">
-                            <div class="confidence-bar" id="confidence-bar" style="width: 0%"></div>
-                        </div>
-                        <p id="confidence-text">95% match with <strong>Condition</strong></p>
-                        
-                        <h4 style="margin-top: 15px;">Safety Signals</h4>
-                        <ul id="safety-signals-list" class="safety-signals-list">
-                            <li>No critical vital signs detected.</li>
-                        </ul>
+                        <ul id="res-care"></ul>
                     </div>
                 </div>
             </div>
 
-            <div class="bottom-decoration">
-                <div class="handwriting">
-                    Better<br>Questions<br>Healthier<br>Days
-                    <svg width="100" height="20" viewBox="0 0 100 20">
-                        <path d="M5,15 Q50,0 95,10" fill="none" stroke="#617A67" stroke-width="1"/>
-                    </svg>
-                </div>
-                <div class="bottom-words">
-                    People<br>Health<br>Possibilities<br><span class="line">—</span>
-                </div>
+            <div class="bottom-words">
+                CLINIC AI BUILDS WITH PRIDE
             </div>
         </main>
     </div>
