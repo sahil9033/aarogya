@@ -17,6 +17,29 @@ from sklearn.metrics import roc_curve, auc, confusion_matrix
 from drug_module import check_drugs
 
 # =========================================================
+# RUNTIME BOOTSTRAP
+# Allows this file to be started with either `streamlit run app.py`
+# or a plain `python app.py` (e.g. Render's default start command).
+# =========================================================
+if __name__ == "__main__":
+    try:
+        _running_under_streamlit = st.runtime.exists()
+    except Exception:
+        _running_under_streamlit = False
+
+    if not _running_under_streamlit:
+        import sys
+        from streamlit.web import cli as stcli
+
+        sys.argv = [
+            "streamlit", "run", os.path.abspath(__file__),
+            "--server.port", os.environ.get("PORT", "8501"),
+            "--server.address", "0.0.0.0",
+            "--server.headless", "true",
+        ]
+        sys.exit(stcli.main())
+
+# =========================================================
 # PAGE CONFIGURATION & ARCHITECTURE INITIALIZATION
 # =========================================================
 st.set_page_config(
