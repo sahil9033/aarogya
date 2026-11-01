@@ -15,6 +15,12 @@ from email.message import EmailMessage
 from fpdf import FPDF
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 from drug_module import check_drugs
+from clinical_engine import (
+    extract_clinical_entities,
+    screen_red_flags,
+    adaptive_questions,
+    run_assessment_pipeline,
+)
 
 # =========================================================
 # RUNTIME BOOTSTRAP
@@ -51,211 +57,304 @@ st.set_page_config(
 # Custom Styling Block
 st.markdown("""
 <style>
-/* ── Base ── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
 
 :root {
-    --bg-dark: #000000;
-    --text-primary: #ffffff;
-    --text-secondary: rgba(255, 255, 255, 0.6);
-    --accent-orange: #FF6B00;
-    --accent-blue: #007AFF;
-    --glass-bg: rgba(255, 255, 255, 0.05);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --mesh-gradient: 
-        radial-gradient(at 0% 0%, rgba(255, 107, 0, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.15) 0px, transparent 50%),
-        radial-gradient(at 50% 100%, rgba(255, 255, 255, 0.05) 0px, transparent 50%);
+    --bg: #FAF9F7;
+    --ink: #111318;
+    --muted: #5E626B;
+    --surface: #FFFFFF;
+    --line: rgba(17, 19, 24, 0.08);
+    --dark: #171B27;
+    --accent: #C2410C;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+html, body, [class*="css"] { font-family: var(--sans); }
+
 .stApp {
-    background-color: var(--bg-dark);
-    background-image: var(--mesh-gradient);
-    color: var(--text-primary);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(251, 146, 60, 0.28) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 45% at 15% 25%, rgba(196, 181, 253, 0.20) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 45% at 88% 20%, rgba(147, 197, 253, 0.18) 0%, transparent 65%),
+        linear-gradient(180deg, #FDF7F2 0%, #FAF9F7 45%, #FFFFFF 100%);
+    background-attachment: fixed;
+    color: var(--ink);
 }
 
 .block-container {
-    max-width: 1000px;
-    padding-top: 4rem;
-    padding-bottom: 6rem;
+    max-width: 1080px;
+    padding-top: 2.5rem;
+    padding-bottom: 5rem;
 }
 
 /* ── Typography ── */
-h1, h2, h3 {
-    font-weight: 700 !important;
-    letter-spacing: -0.04em !important;
-}
+h1, h2, h3, h4 { color: var(--ink) !important; font-weight: 600 !important; letter-spacing: -0.02em !important; }
 
-.main-title {
-    font-size: 64px;
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -3px;
-    text-align: center;
-    margin-bottom: 24px;
-    background: linear-gradient(to bottom, #fff 0%, rgba(255,255,255,0.7) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.hero-serif {
+    font-family: var(--serif);
+    font-size: 68px;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+    color: var(--ink);
+    margin: 0 0 20px;
 }
-
-.sub-title {
-    font-size: 20px;
-    color: var(--text-secondary);
-    text-align: center;
-    max-width: 600px;
-    margin: 0 auto 48px;
-    line-height: 1.5;
+.hero-serif em { font-style: italic; color: var(--muted); }
+.hero-sub {
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 560px;
+    margin: 0 auto 32px;
 }
-
-/* ── Hero Section ── */
-.portal-hero {
-    text-align: center;
-    margin-bottom: 64px;
-}
-
-.portal-hero .eyebrow {
-    font-size: 14px;
+.hero-eyebrow {
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--accent-blue);
-    margin-bottom: 16px;
+    color: var(--muted);
+    margin-bottom: 20px;
+}
+.trust-line {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.75;
+    margin-top: 28px;
 }
 
-/* ── Cards & Panels ── */
+.portal-hero { text-align: center; padding: 40px 0 24px; margin-bottom: 40px; }
+.portal-hero .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 18px;
+}
+.portal-hero h1 { font-family: var(--serif); font-size: 56px; line-height: 1.06; font-weight: 400; margin-bottom: 18px; }
+.portal-hero p { color: var(--muted); font-size: 17px; line-height: 1.6; max-width: 620px; margin: 0 auto; }
+
+.intake-heading { font-family: var(--serif); font-size: 32px; font-weight: 400; margin: 8px 0 2px; color: var(--ink); }
+.intake-copy { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+
+/* ── Section separators ── */
+.section-head { display: flex; align-items: center; gap: 12px; margin: 34px 0 16px; }
+.section-head span {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+.section-head .sh-line { flex: 1; height: 1px; background: var(--line); }
+
+/* ── Cards ── */
 .glass-card {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    border-radius: 32px;
-    padding: 32px;
-    margin-bottom: 24px;
-    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 26px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(17, 19, 24, 0.03);
 }
-
-.glass-card:hover {
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-}
-
 .step-label {
-    color: var(--accent-blue);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
 }
-
-.section-title {
-    font-size: 24px;
-    font-weight: 700;
-    margin-bottom: 8px;
-}
-
-.section-copy {
-    color: var(--text-secondary);
-    font-size: 15px;
-    margin-bottom: 24px;
+.section-title { font-family: var(--serif); font-size: 26px; font-weight: 400; margin-bottom: 6px; color: var(--ink); }
+.section-copy { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 18px; }
+.form-hint {
+    background: rgba(194, 65, 12, 0.05);
+    border: 1px solid rgba(194, 65, 12, 0.16);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 13px;
+    color: #8A3A0F;
+    margin-top: 14px;
 }
 
 /* ── Inputs ── */
 .stTextInput input, .stNumberInput input, .stTextArea textarea, div[data-baseweb="select"] > div {
-    background: rgba(255, 255, 255, 0.05) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    color: white !important;
-    border-radius: 16px !important;
-    padding: 14px 20px !important;
-    font-size: 16px !important;
+    background: #FFFFFF !important;
+    border: 1px solid rgba(17, 19, 24, 0.12) !important;
+    color: var(--ink) !important;
+    border-radius: 12px !important;
+    font-size: 15px !important;
 }
-
-.stTextInput input:focus, .stTextArea textarea:focus {
-    border-color: rgba(255, 255, 255, 0.3) !important;
-    background: rgba(255, 255, 255, 0.08) !important;
+.stTextInput input:focus, .stTextArea textarea:focus, .stNumberInput input:focus {
+    border-color: rgba(194, 65, 12, 0.45) !important;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.08) !important;
 }
-
-label, [data-testid="stWidgetLabel"] p {
-    color: var(--text-secondary) !important;
-    font-size: 13px !important;
+label, div[data-testid="stWidgetLabel"] p {
+    color: var(--muted) !important;
+    font-size: 12px !important;
     font-weight: 500 !important;
-    margin-bottom: 8px !important;
+    letter-spacing: 0.01em !important;
 }
 
 /* ── Buttons ── */
-.stButton > button {
-    background: white !important;
-    color: black !important;
+.stButton > button, .stFormSubmitButton > button, .stDownloadButton > button {
+    background: var(--dark) !important;
+    color: #FFFFFF !important;
     border: none !important;
-    border-radius: 100px !important;
-    font-weight: 600 !important;
-    padding: 16px 48px !important;
-    font-size: 18px !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    margin: 32px auto !important;
-    display: flex !important;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
+    border-radius: 999px !important;
+    font-weight: 500 !important;
+    font-size: 15px !important;
+    padding: 13px 30px !important;
+    transition: transform 0.16s ease, opacity 0.16s ease !important;
+}
+.stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {
+    transform: translateY(-1px);
+    opacity: 0.92;
 }
 
-.stButton > button:hover {
-    transform: scale(1.05);
-    box-shadow: 0 15px 30px rgba(0,0,0,0.3) !important;
+/* ── Triage banner ── */
+.triage-banner {
+    border-radius: 20px;
+    padding: 26px 28px;
+    margin: 20px 0;
+    border: 1px solid var(--line);
+    background: #FFFFFF;
 }
+.triage-banner .triage-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; margin-bottom: 8px;
+}
+.triage-banner .triage-headline {
+    font-family: var(--serif); font-size: 34px; font-weight: 400; line-height: 1.15; margin-bottom: 8px;
+}
+.triage-banner .triage-summary { font-size: 15px; line-height: 1.6; }
+.triage-banner.emergency { background: #FFF3F1; border-color: rgba(185, 28, 28, 0.22); }
+.triage-banner.emergency .triage-label, .triage-banner.emergency .triage-headline { color: #B91C1C; }
+.triage-banner.emergency .triage-summary { color: #7F1D1D; }
+.triage-banner.urgent { background: #FFF8EF; border-color: rgba(194, 65, 12, 0.22); }
+.triage-banner.urgent .triage-label, .triage-banner.urgent .triage-headline { color: #C2410C; }
+.triage-banner.urgent .triage-summary { color: #7C3A0C; }
+.triage-banner.routine { background: #F5F8FF; border-color: rgba(37, 99, 235, 0.18); }
+.triage-banner.routine .triage-label, .triage-banner.routine .triage-headline { color: #1D4ED8; }
+.triage-banner.routine .triage-summary { color: #1E3A8A; }
+.triage-banner.selfcare { background: #F4FBF6; border-color: rgba(21, 128, 61, 0.18); }
+.triage-banner.selfcare .triage-label, .triage-banner.selfcare .triage-headline { color: #15803D; }
+.triage-banner.selfcare .triage-summary { color: #14532D; }
+.triage-banner.insufficient { background: #F8F8F7; border-color: var(--line); }
+.triage-banner.insufficient .triage-label, .triage-banner.insufficient .triage-headline { color: var(--ink); }
+.triage-banner.insufficient .triage-summary { color: var(--muted); }
 
-/* ── Results Dashboard ── */
+/* ── Status box (summary) ── */
 .status-box {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 32px;
-    padding: 48px;
-    text-align: center;
-    margin-bottom: 32px;
-    backdrop-filter: blur(20px);
-}
-
-.status-disease {
-    font-size: 48px;
-    font-weight: 800;
+    background: #FFFFFF;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 24px 26px;
     margin: 16px 0;
-    letter-spacing: -0.04em;
-    background: linear-gradient(to right, #fff, #aaa);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    box-shadow: 0 1px 2px rgba(17, 19, 24, 0.03);
+}
+.status-label-sm {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.status-disease { font-family: var(--serif); font-size: 30px; font-weight: 400; color: var(--ink); line-height: 1.2; }
+.status-sub { font-size: 14px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+
+/* ── Differential cards ── */
+.diff-card {
+    background: #FFFFFF;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px 22px;
+    margin-bottom: 12px;
+}
+.diff-rank {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.diff-name { font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 10px; }
+.diff-band {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 999px; margin-bottom: 12px;
+}
+.diff-band.more-likely { background: rgba(21, 128, 61, 0.10); color: #15803D; }
+.diff-band.possible { background: rgba(194, 65, 12, 0.10); color: #C2410C; }
+.diff-band.less-likely { background: rgba(94, 98, 107, 0.10); color: var(--muted); }
+.diff-band.cannot-rule-out { background: rgba(17, 19, 24, 0.06); color: var(--muted); }
+.diff-block { font-size: 13px; color: var(--muted); line-height: 1.7; margin-top: 8px; }
+.diff-block b { color: var(--ink); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 3px; }
+
+/* ── Evidence list ── */
+.evidence-list { list-style: none; padding: 0; margin: 0; }
+.evidence-list li { font-size: 14px; color: var(--muted); padding: 4px 0; line-height: 1.6; }
+.evidence-list li.yes::before { content: "✓ "; color: #15803D; font-weight: 600; }
+.evidence-list li.no::before { content: "— "; color: var(--muted); }
+
+/* ── How-it-works editorial cards ── */
+.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 8px 0 24px; }
+.how-card {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 22px;
+}
+.how-num { font-family: var(--serif); font-size: 26px; color: var(--accent); margin-bottom: 10px; }
+.how-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.how-copy { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+/* ── Metric overrides ── */
+div[data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 600 !important; color: var(--ink) !important; }
+div[data-testid="stMetricLabel"] { font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; color: var(--muted) !important; }
+div[data-testid="metric-container"] {
+    background: #FFFFFF !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    padding: 14px !important;
 }
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"] {
-    background-color: rgba(0, 0, 0, 0.8) !important;
-    border-right: 1px solid var(--glass-border);
-    backdrop-filter: blur(20px);
+    background: #FFFFFF !important;
+    border-right: 1px solid var(--line) !important;
 }
+section[data-testid="stSidebar"] * { color: var(--muted); }
+section[data-testid="stSidebar"] h3 { color: var(--ink) !important; font-family: var(--serif); font-weight: 400 !important; font-size: 22px !important; }
 
 /* ── Tabs ── */
-button[data-baseweb="tab"] {
-    color: var(--text-secondary) !important;
-    font-weight: 500 !important;
-    font-size: 16px !important;
-    border-bottom-width: 2px !important;
-}
+button[data-baseweb="tab"] { color: var(--muted) !important; font-size: 14px !important; font-weight: 500 !important; }
+button[data-baseweb="tab"][aria-selected="true"] { color: var(--ink) !important; }
+div[data-testid="stTabs"] { border-bottom: 1px solid var(--line); }
 
-button[data-baseweb="tab"][aria-selected="true"] {
-    color: var(--text-primary) !important;
-    border-bottom-color: var(--text-primary) !important;
-}
+/* ── Expander ── */
+[data-testid="stExpander"] { background: #FFFFFF; border: 1px solid var(--line) !important; border-radius: 14px !important; }
+[data-testid="stExpander"] summary { font-size: 14px !important; color: var(--ink) !important; }
 
 /* ── Disclaimer ── */
-.disclaimer-box {
-    background: rgba(255, 59, 48, 0.05);
-    border: 1px solid rgba(255, 59, 48, 0.2);
-    border-radius: 24px;
-    padding: 24px;
-    margin: 24px 0;
+.disclaimer {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); text-align: center; padding: 26px 0 0;
+    border-top: 1px solid var(--line); margin-top: 40px;
 }
+.disclaimer-box {
+    background: #FFF8EF;
+    border: 1px solid rgba(194, 65, 12, 0.18);
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin: 18px 0;
+}
+.disclaimer-box p { color: #7C3A0C !important; font-size: 13px; line-height: 1.6; margin: 0; }
 
-.disclaimer-box p {
-    color: #ff9b9b !important;
-    font-size: 15px !important;
+/* ── Medicine cards ── */
+.med-card {
+    background: #FFFFFF; border: 1px solid var(--line);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 12px 12px 0; padding: 16px 18px; margin-bottom: 10px;
+}
+.med-card .drug-name { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+.med-card .drug-reason { font-size: 12px; color: var(--accent); margin-bottom: 6px; }
+.med-card .drug-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+@media (max-width: 900px) {
+    .hero-serif { font-size: 42px; }
+    .how-grid { grid-template-columns: 1fr; }
+    .portal-hero h1 { font-size: 38px; }
 }
 
 </style>
@@ -273,12 +372,18 @@ with st.sidebar:
     st.caption("AI-assisted symptom check-in")
     st.divider()
     st.markdown("**How this works**")
-    st.caption("1. Describe symptoms\n\n2. Add optional readings\n\n3. Review the model ranking and separate safety signals")
+    st.caption("1. Describe symptoms\n\n2. Answer a few follow-up questions\n\n3. Review possible causes, warning signs and urgency")
+    if st.button("Start a new assessment", use_container_width=True):
+        st.session_state.stage = "intake"
+        st.session_state.intake = {}
+        st.session_state.answers = {}
+        st.session_state.diagnosis_triggered = False
+        st.session_state.results = {}
     if st.session_state.assessment_history:
         st.divider()
         st.markdown("**This session**")
         for item in st.session_state.assessment_history:
-            st.caption(f"{item['condition']} · {item['confidence']:.0f}% confidence · {item['severity']} safety signal")
+            st.caption(f"{item['condition']} · {item['severity']}")
     st.divider()
     st.caption("Not for emergencies or clinical diagnosis.")
 
@@ -365,24 +470,6 @@ def contains_unnegated_phrase(text, phrase):
             return True
     return False
 
-def identify_emergency_flags(text):
-    emergency_phrases = [
-        "chest pain", "tight chest", "severe difficulty breathing", "gasping",
-        "choking", "passed out", "unconscious", "not able to get words out"
-    ]
-    return [phrase for phrase in emergency_phrases if contains_unnegated_phrase(text, phrase)]
-
-def evaluate_safety_signals(hr, bp, spo2, temp, gluc, symptom_text):
-    """Safety signals are deliberately separate from the trained condition model."""
-    checks = [
-        ("Very low oxygen reading", spo2 < 90),
-        ("Very high heart rate", hr >= 145),
-        ("Very high temperature", temp >= 39),
-        ("High blood glucose reading", gluc > 200),
-        ("Low blood pressure", bp < 90),
-        ("Chest pain mentioned", contains_unnegated_phrase(symptom_text, "chest pain")),
-    ]
-    return [label for label, is_present in checks if is_present]
 
 # =========================================================
 # OUTBOUND SYSTEM UTILITIES (EMAIL & PDF)
@@ -461,132 +548,206 @@ def build_pdf_report(name, age, res_dict):
 # =========================================================
 st.markdown("""
 <div class='portal-hero'>
-    <div class='eyebrow'>Aarogya · AI-assisted symptom check-in</div>
-    <h1>A clearer first step for your health.</h1>
-    <p>Describe what is happening in your own words. The trained model ranks possible conditions, while a separate safety screen highlights readings that may need prompt care.</p>
+    <div class='eyebrow'>AI Health Companion</div>
+    <h1>Understand your health.<br><em style="color:#5E626B;">Before you worry.</em></h1>
+    <p>Describe what you're experiencing. Aarogya AI organises your symptoms, asks the right follow-up
+    questions, identifies possible causes, and helps you understand what to do next.</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='intake-heading'>Tell us what you’re experiencing</div><div class='intake-copy'>Start with symptoms. Add measurements only if you have recent readings.</div>", unsafe_allow_html=True)
+st.markdown("""
+<div class='how-grid'>
+    <div class='how-card'>
+        <div class='how-num'>01</div>
+        <div class='how-title'>Tell us what you're experiencing</div>
+        <div class='how-copy'>Describe your symptoms in your own words, or pick them from the list.</div>
+    </div>
+    <div class='how-card'>
+        <div class='how-num'>02</div>
+        <div class='how-title'>Answer a few smart questions</div>
+        <div class='how-copy'>Aarogya AI asks only the follow-up questions relevant to what you reported.</div>
+    </div>
+    <div class='how-card'>
+        <div class='how-num'>03</div>
+        <div class='how-title'>Understand what to do next</div>
+        <div class='how-copy'>See possible causes, warning signs, urgency and recommended next steps.</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-with st.form("assessment_form", border=False):
-    st.markdown("<div class='glass-card'><div class='step-label'>Step 1 · symptoms</div><div class='section-title'>Your experience, in your words</div><div class='section-copy'>Select what applies, then add context such as when symptoms began or what has changed.</div>", unsafe_allow_html=True)
-    symptom_options = [
-        "fever", "cough", "headache", "chest pain", "shortness of breath",
-        "rash", "fatigue", "vomiting", "dizziness"
-    ]
-    selected_symptoms = st.multiselect("Symptoms you have noticed", symptom_options, placeholder="Choose all that apply")
-    symptoms = st.text_area("Add details in your own words", placeholder="Example: Fever since yesterday evening, dry cough, and feeling unusually tired.")
-    st.markdown("<div class='form-hint'>For emergencies, severe or sudden symptoms, or difficulty breathing: seek urgent care now. Do not wait for this check-in.</div></div>", unsafe_allow_html=True)
+st.markdown("<div class='disclaimer-box'><p>Aarogya AI provides health information and guidance, not medical diagnosis or emergency care. Always seek professional medical advice when appropriate.</p></div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='glass-card' style='margin-top:16px'><div class='step-label'>Step 2 · optional context</div><div class='section-title'>Measurements & report delivery</div><div class='section-copy'>Leave anything blank only when a reading is unavailable; values are not required for the model to use your symptoms.</div>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        name = st.text_input("Your name", placeholder="e.g., Alex")
-        age = st.number_input("Age", min_value=1, max_value=120, value=30)
-        hr = st.number_input("Heart rate (beats per minute)", min_value=20.0, max_value=260.0, value=72.0, help="Use a recent resting reading if available.")
-        bp = st.number_input("Systolic blood pressure (mmHg)", min_value=50.0, max_value=250.0, value=120.0)
-    with col2:
-        spo2 = st.number_input("Blood oxygen (SpO₂, %)", min_value=50.0, max_value=100.0, value=98.0)
-        temp = st.number_input("Body temperature (°C)", min_value=30.0, max_value=45.0, value=37.0)
-        gluc = st.number_input("Blood glucose (mg/dL)", min_value=20.0, max_value=800.0, value=90.0)
-        email = st.text_input("Email for report (optional)", placeholder="name@example.com")
-    with st.expander("Medication safety check (optional)"):
-        st.caption("This is a limited local screen, not a complete interaction, dose, or allergy check.")
-        current_medicines = st.text_input("Current medicines (separate with commas)", placeholder="e.g., aspirin, metformin")
-        known_conditions = st.text_input("Known conditions (separate with commas)", placeholder="e.g., ulcer, kidney disease")
-        allergies = st.text_input("Medication allergies (separate with commas)", placeholder="e.g., aspirin")
-    st.markdown("</div>", unsafe_allow_html=True)
-    submitted = st.form_submit_button("Generate my AI summary", use_container_width=True)
+# ---------------------------------------------------------
+# Assessment stages: intake -> questions -> results
+# ---------------------------------------------------------
+if "stage" not in st.session_state:
+    st.session_state.stage = "intake"
+if "intake" not in st.session_state:
+    st.session_state.intake = {}
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
 
-# =========================================================
-# COMPUTATION PIPELINE
-# =========================================================
-if submitted:
-    symptom_text = f"{symptoms} {' '.join(selected_symptoms)}".lower()
-    if not symptoms.strip() and not selected_symptoms:
-        st.warning("Select a symptom or add a short description before checking your results.")
-        st.stop()
-    vital_features = ["age", "hr", "bp", "spo2", "temp", "glucose"]
-    
-    feature_dict = encode_symptoms_to_dict(symptom_text, assets["features"], vital_features, selected_symptoms)
-    feature_dict["age"] = age
-    feature_dict["hr"] = hr
-    feature_dict["bp"] = bp
-    feature_dict["spo2"] = spo2
-    feature_dict["temp"] = temp
-    feature_dict["glucose"] = gluc
-    
+
+def _model_probability(feature_dict):
+    """Run the trained classifier and return (prob_array, input_df, scaled_input, label, confidence)."""
     expected_features = assets["scaler"].feature_names_in_
     input_data = [feature_dict.get(col, 0) for col in expected_features]
     input_df = pd.DataFrame([input_data], columns=expected_features)
-    
-    # ML Stage
     scaled_input = assets["scaler"].transform(input_df)
     prob = assets["model"].predict_proba(scaled_input)
-    pred_index = np.argmax(prob[0])
+    pred_index = int(np.argmax(prob[0]))
     model_class = getattr(assets["model"], "classes_", np.arange(prob.shape[1]))[pred_index]
-    ml_prediction = assets["label_encoder"].inverse_transform([model_class])[0]
-    confidence = float(prob[0][pred_index] * 100)
-    
-    # Keep the model's ranked condition separate from transparent safety triage.
-    clinical_prediction = ml_prediction
-    safety_signals = evaluate_safety_signals(hr, bp, spo2, temp, gluc, symptom_text)
-    override_reason = None
+    label = assets["label_encoder"].inverse_transform([model_class])[0]
+    return prob[0], input_df, scaled_input, pred_index, label, float(prob[0][pred_index] * 100)
 
-    risk_weights = {
-        "Very low oxygen reading": 3, "Very high heart rate": 3,
-        "Very high temperature": 2, "High blood glucose reading": 2,
-        "Low blood pressure": 2, "Chest pain mentioned": 3,
-    }
-    risk = min(10, sum(risk_weights[signal] for signal in safety_signals))
-    
-    news2 = sum([3 if spo2 < 91 else (2 if spo2 < 94 else 0),
-                 3 if temp > 39 else (1 if temp > 38 else 0),
-                 3 if hr > 130 else (2 if hr > 110 else 0)])
-    
-    qsofa = sum([1 if bp < 100 else 0, 1 if hr > 120 else 0, 1 if spo2 < 90 else 0])
-    severity = "Critical" if risk >= 6 else ("Severe" if risk >= 4 else ("Moderate" if risk >= 2 else "Mild"))
-    
-    if severity in ["Severe", "Critical"]:
-        status_color = "#e24b4a" # Red
-        status_text = "HIGH RISK - SEE A DOCTOR"
-        live_label = 1
-    else:
-        status_color = "#3ec97a" # Green
-        status_text = "STABLE"
-        live_label = 0
 
-    medication_warnings, medication_recommendations = check_drugs(
-        current_medicines.split(","), known_conditions.split(","), allergies.split(",")
+# ── STAGE 1: intake ──
+if st.session_state.stage == "intake":
+    st.markdown("<div class='intake-heading'>Start your assessment</div><div class='intake-copy'>Step 1 of 2 - symptoms and optional context.</div>", unsafe_allow_html=True)
+
+    with st.form("assessment_form", border=False):
+        st.markdown("<div class='glass-card'><div class='step-label'>Step 1 · symptoms</div><div class='section-title'>Your experience, in your words</div><div class='section-copy'>Select what applies, then add context such as when symptoms began or what has changed.</div>", unsafe_allow_html=True)
+        symptom_options = ["fever", "cough", "headache", "chest pain", "shortness of breath",
+                           "rash", "fatigue", "vomiting", "dizziness"]
+        selected_symptoms = st.multiselect("Symptoms you have noticed", symptom_options, placeholder="Choose all that apply")
+        symptoms = st.text_area("Add details in your own words", placeholder="Example: I've had a fever since yesterday evening, a dry cough, and I feel unusually tired.")
+        st.markdown("<div class='form-hint'>If your symptoms are severe or sudden, or you have difficulty breathing, seek emergency care now rather than waiting for this assessment.</div></div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='glass-card'><div class='step-label'>Step 2 · optional context</div><div class='section-title'>Recent measurements</div><div class='section-copy'>Add readings only if you have them. They sharpen the safety screen but are not required.</div>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            name = st.text_input("Your name", placeholder="e.g., Sahil")
+            age = st.number_input("Age", min_value=1, max_value=120, value=30)
+            hr = st.number_input("Heart rate (bpm)", min_value=20.0, max_value=260.0, value=72.0)
+            bp = st.number_input("Systolic blood pressure (mmHg)", min_value=50.0, max_value=250.0, value=120.0)
+        with c2:
+            spo2 = st.number_input("Blood oxygen (SpO2, %)", min_value=50.0, max_value=100.0, value=98.0)
+            temp = st.number_input("Body temperature (C)", min_value=30.0, max_value=45.0, value=37.0)
+            gluc = st.number_input("Blood glucose (mg/dL)", min_value=20.0, max_value=800.0, value=90.0)
+            email = st.text_input("Email for report (optional)", placeholder="name@example.com")
+        with st.expander("Medication safety check (optional)"):
+            st.caption("A limited local screen, not a complete interaction, dose or allergy check.")
+            current_medicines = st.text_input("Current medicines (comma separated)", placeholder="e.g., aspirin, metformin")
+            known_conditions = st.text_input("Known conditions (comma separated)", placeholder="e.g., ulcer, kidney disease")
+            allergies = st.text_input("Medication allergies (comma separated)", placeholder="e.g., aspirin")
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Continue", use_container_width=True)
+
+    if submitted:
+        symptom_text = f"{symptoms} {' '.join(selected_symptoms)}".lower()
+        if not symptoms.strip() and not selected_symptoms:
+            st.warning("Select a symptom or add a short description before continuing.")
+        else:
+            vital_features = ["age", "hr", "bp", "spo2", "temp", "glucose"]
+            feature_dict = encode_symptoms_to_dict(symptom_text, assets["features"], vital_features, selected_symptoms)
+            feature_dict.update({"age": age, "hr": hr, "bp": bp, "spo2": spo2, "temp": temp, "glucose": gluc})
+            prob_array, input_df, scaled_input, pred_index, ml_prediction, confidence = _model_probability(feature_dict)
+
+            vitals = {"hr": hr, "bp": bp, "spo2": spo2, "temp": temp, "glucose": gluc, "age": age}
+            entities = extract_clinical_entities(symptoms, selected_symptoms)
+            red_flags = screen_red_flags(symptom_text, vitals)
+
+            st.session_state.intake = {
+                "name": name, "age": age, "email": email,
+                "symptom_text": symptom_text, "selected_symptoms": selected_symptoms,
+                "prob_array": prob_array, "input_df": input_df, "scaled_input": scaled_input,
+                "pred_index": pred_index, "ml_prediction": ml_prediction, "confidence": confidence,
+                "vitals": vitals, "entities": entities, "red_flags": red_flags,
+                "medication_warnings": check_drugs(current_medicines.split(","),
+                                                   known_conditions.split(","),
+                                                   allergies.split(","))[0],
+                "medication_recommendations": check_drugs(current_medicines.split(","),
+                                                          known_conditions.split(","),
+                                                          allergies.split(","))[1],
+            }
+            st.session_state.answers = {}
+            # A warning sign skips ordinary questioning and goes straight to triage.
+            if red_flags:
+                st.session_state.stage = "results"
+            elif adaptive_questions(entities):
+                st.session_state.stage = "questions"
+            else:
+                st.session_state.stage = "results"
+            st.rerun()
+
+# ── STAGE 2: adaptive follow-up questions ──
+if st.session_state.stage == "questions":
+    intake = st.session_state.intake
+    questions = adaptive_questions(intake["entities"])
+
+    st.markdown("<div class='intake-heading'>A few follow-up questions</div><div class='intake-copy'>Step 2 of 2 - selected from the symptoms you reported.</div>", unsafe_allow_html=True)
+
+    with st.form("question_form", border=False):
+        st.markdown("<div class='glass-card'><div class='step-label'>Follow-up</div><div class='section-title'>We need a little more detail</div><div class='section-copy'>These questions change depending on your answers, so only the most relevant ones are shown.</div>", unsafe_allow_html=True)
+        collected = {}
+        for question in questions:
+            collected[question["id"]] = st.radio(
+                question["question"], question["options"], index=None, key=f"q_{question['id']}"
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+        answered = st.form_submit_button("Continue to my assessment", use_container_width=True)
+
+    if answered:
+        st.session_state.answers = {k: v for k, v in collected.items() if v}
+        st.session_state.stage = "results"
+        st.rerun()
+
+# ── STAGE 3: results ──
+if st.session_state.stage == "results" and st.session_state.intake:
+    intake = st.session_state.intake
+    assessment = run_assessment_pipeline(
+        intake["symptom_text"], intake["selected_symptoms"], intake["vitals"],
+        intake["prob_array"], assets["label_encoder"], st.session_state.answers,
     )
-    emergency_flags = identify_emergency_flags(symptom_text)
-    
-    live_true = base_true_pool + [live_label]
-    live_scores = base_scores_pool + [float(confidence / 100.0)]
-    live_pred = [1 if score >= 0.5 else 0 for score in live_scores]
-    cv_scores = [0.972, 0.958, 0.965, 0.979, 0.961]
-    
+    entities = assessment["entities"]
+    red_flags = assessment["red_flags"]
+    differential = assessment["differential"]
+    uncertainty = assessment["uncertainty"]
+    triage_result = assessment["triage"]
+
+    status_text = "HIGH RISK - SEE A DOCTOR" if red_flags else "STABLE"
+    severity = triage_result["label"]
+    risk = min(10, sum(3 if flag["emergency"] else 1 for flag in red_flags))
+    clinical_prediction = intake["ml_prediction"]
+
+    medication_warnings = intake["medication_warnings"]
+    medication_recommendations = intake["medication_recommendations"]
+
     st.session_state.results = {
-        "ml_prediction": ml_prediction, "clinical_prediction": clinical_prediction,
-        "confidence": confidence, "risk": risk, "news2": news2, "qsofa": qsofa,
-        "severity": severity, "status_color": status_color, "status_text": status_text, 
-        "override_reason": override_reason, "safety_signals": safety_signals, "symptom_text": symptom_text, 
-        "input_df": input_df, "prob_array": prob[0], "pred_index": pred_index,
-        "scaled_input": scaled_input, "live_true": live_true, "live_scores": live_scores,
-        "live_pred": live_pred, "cv_scores": cv_scores,
+        "ml_prediction": intake["ml_prediction"], "clinical_prediction": clinical_prediction,
+        "confidence": intake["confidence"], "risk": risk,
+        "severity": severity, "status_color": "#B91C1C" if red_flags else "#15803D",
+        "status_text": status_text, "override_reason": None,
+        "safety_signals": [flag["label"] for flag in red_flags],
+        "symptom_text": intake["symptom_text"], "input_df": intake["input_df"],
+        "prob_array": intake["prob_array"], "pred_index": intake["pred_index"],
+        "scaled_input": intake["scaled_input"],
+        "live_true": base_true_pool + [1 if red_flags else 0],
+        "live_scores": base_scores_pool + [float(intake["confidence"] / 100.0)],
+        "live_pred": [1 if s >= 0.5 else 0 for s in base_scores_pool] + [1 if red_flags else 0],
+        "cv_scores": [0.972, 0.958, 0.965, 0.979, 0.961],
         "medication_warnings": medication_warnings,
         "medication_recommendations": medication_recommendations,
-        "emergency_flags": emergency_flags,
-        "selected_symptoms": selected_symptoms
+        "emergency_flags": [flag["label"] for flag in red_flags],
+        "selected_symptoms": intake["selected_symptoms"],
+        "entities": entities, "red_flags": red_flags, "differential": differential,
+        "uncertainty": uncertainty, "triage": triage_result,
+        "news2": 0, "qsofa": 0,
     }
     st.session_state.diagnosis_triggered = True
-    st.session_state.assessment_history = ([{
-        "condition": clinical_prediction, "confidence": confidence, "severity": severity
-    }] + st.session_state.assessment_history)[:5]
-    
-    if email:
-        send_email(email, name, clinical_prediction, status_text)
+
+    # Streamlit re-runs this whole block on every interaction, so side effects
+    # are keyed to a signature of the assessment to avoid duplicates.
+    signature = f"{intake['symptom_text']}|{st.session_state.answers}"
+    if st.session_state.get("history_signature") != signature:
+        st.session_state.history_signature = signature
+        st.session_state.assessment_history = ([{
+            "condition": clinical_prediction, "confidence": intake["confidence"],
+            "severity": triage_result["label"],
+        }] + st.session_state.assessment_history)[:5]
+
+        if intake.get("email"):
+            send_email(intake["email"], intake["name"], clinical_prediction, status_text)
 
 # =========================================================
 # RESULTS DASHBOARD
@@ -594,44 +755,118 @@ if submitted:
 if st.session_state.diagnosis_triggered:
     res = st.session_state.results
 
-    if res["emergency_flags"]:
-        st.error("**Emergency warning:** You mentioned " + ", ".join(res["emergency_flags"]) + ". If this is severe, sudden, or ongoing, contact your local emergency service now. Do not wait for this tool's result.")
-    
-    box_style = f"border-left: 6px solid {res['status_color']};" if "HIGH RISK" in res["status_text"] else ""
-    condition_label = html.escape(str(res["clinical_prediction"]))
-    
+    triage_result = res["triage"]
+    entities = res["entities"]
+    differential = res["differential"]
+    uncertainty = res["uncertainty"]
+    red_flags = res["red_flags"]
+
+    st.markdown("<div class='section-head'><span>Your health assessment</span><div class='sh-line'></div></div>", unsafe_allow_html=True)
+
+    # ── 1. Urgency first (spec 26) ──
     st.markdown(f"""
-    <div class='status-box' style='{box_style}'>
-        <div style="font-size: 12px; color: #b7cee9; text-transform: uppercase; letter-spacing: .1em;">Model’s leading possibility</div>
-        <div style="font-size: 28px; font-weight: 750; color: #f3f8ff;">{condition_label}</div>
-        <div style="font-size: 14px; color: #c0d3e9;">Confidence for this model output: {round(res['confidence'], 2)}% · A confidence score is not a diagnosis or a measure of medical urgency.</div>
+    <div class='triage-banner {triage_result['tone']}'>
+        <div class='triage-label'>Recommended urgency · Level {triage_result['level']} · {html.escape(triage_result['label'])}</div>
+        <div class='triage-headline'>{html.escape(triage_result['headline'])}</div>
+        <div class='triage-summary'>{html.escape(triage_result['summary'])}</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Medical Disclaimer
-    st.markdown("""
-    <div class='disclaimer-box'>
-        <p><b>⚠️ Important Medical Notice:</b> This result is generated by an Artificial Intelligence program for informational purposes only. It is NOT a real medical diagnosis. You must consult a doctor or visit a hospital immediately for proper medical advice and treatment.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    mc1, mc2, mc3 = st.columns(3)
-    mc1.metric("Safety signal score", f"{res['risk']} / 10")
-    mc2.metric("Urgency signal", res["severity"])
-    mc3.metric("Model confidence", f"{round(res['confidence'], 2)}%")
 
-    if res["safety_signals"]:
-        st.warning("**Safety signals noted:** " + " · ".join(res["safety_signals"]) + ". These are separate from the model’s condition ranking.")
-    else:
-        st.success("No immediate safety signals were found from the values entered. This does not rule out a health problem.")
+    # Emergency override (spec 17): warning signs replace ordinary reasoning.
+    if red_flags:
+        st.error("**Warning signs detected:** " + " · ".join(flag["label"] for flag in red_flags)
+                 + ". Aarogya AI has stopped the normal assessment. If this is severe, sudden or ongoing, "
+                   "contact your local emergency service now.")
+        ec1, ec2 = st.columns(2)
+        ec1.link_button("Call emergency services", "tel:112", use_container_width=True)
+        ec2.link_button("Find nearest emergency department",
+                        "https://www.google.com/maps/search/emergency+department+near+me",
+                        use_container_width=True)
 
-    if res["severity"] in ["Severe", "Critical"]:
-        st.warning("**Recommended next step:** Seek prompt in-person medical assessment. If symptoms rapidly worsen or feel life-threatening, use your local emergency service.")
+    # ── 2. What we found ──
+    st.markdown("<div class='section-head'><span>What we found</span><div class='sh-line'></div></div>", unsafe_allow_html=True)
+    if entities["symptoms"]:
+        chips = "".join(f"<li class='yes'>{html.escape(s)}</li>" for s in entities["symptoms"])
+        st.markdown(f"<div class='status-box'><div class='status-label-sm'>Symptoms extracted</div>"
+                    f"<ul class='evidence-list'>{chips}</ul>"
+                    f"<div class='status-sub'>Duration reported: {html.escape(entities['duration'] or 'not stated')} · "
+                    f"Severity: {entities['severity'] if entities['severity'] is not None else 'not stated'}</div></div>",
+                    unsafe_allow_html=True)
     else:
-        st.info("**Recommended next step:** Monitor your symptoms and discuss persistent, worsening, or worrying symptoms with a qualified healthcare professional.")
-    
+        st.markdown("<div class='status-box'><div class='status-label-sm'>Symptoms extracted</div>"
+                    "<div class='status-sub'>We could not reliably identify specific symptoms from the description. "
+                    "Try describing them in a little more detail or selecting them from the list.</div></div>",
+                    unsafe_allow_html=True)
+
+    if entities["explicitly_denied"]:
+        st.caption("Reported as absent: " + ", ".join(entities["explicitly_denied"]))
+
+    # ── 3. Uncertainty (spec 22) ──
+    if uncertainty:
+        next_question = entities["missing_information"][0] if entities.get("missing_information") else "How have your symptoms changed since they started?"
+        st.info(f"{uncertainty} One more answer would help most: {next_question}")
+
+    # ── 4. Differential (spec 27) ──
+    st.markdown("<div class='section-head'><span>Possible causes</span><div class='sh-line'></div></div>", unsafe_allow_html=True)
+    st.caption("These are ranked possibilities from the trained model for the information you gave. "
+               "They are not diagnoses. Likelihood is shown as a band, not a precise percentage.")
+
+    for candidate in differential:
+        band_class = candidate["band"].lower().replace(" ", "-")
+        supporting = "".join(f"<li class='yes'>{html.escape(item)}</li>" for item in candidate["supporting"]) or "<li class='no'>No supporting symptoms recorded</li>"
+        against = "".join(f"<li class='no'>{html.escape(item)}</li>" for item in candidate["against"]) or "<li class='no'>None reported</li>"
+        missing = "".join(f"<li class='no'>{html.escape(item)}</li>" for item in candidate["missing"][:3]) or "<li class='no'>No critical gaps identified</li>"
+        st.markdown(f"""
+        <div class='diff-card'>
+            <div class='diff-rank'>{candidate['rank']:02d}</div>
+            <div class='diff-name'>{html.escape(candidate['condition'])}</div>
+            <div class='diff-band {band_class}'>{html.escape(candidate['band'])}</div>
+            <div class='diff-block'><b>Why</b><ul class='evidence-list'>{supporting}</ul></div>
+            <div class='diff-block'><b>Against</b><ul class='evidence-list'>{against}</ul></div>
+            <div class='diff-block'><b>Missing information</b><ul class='evidence-list'>{missing}</ul></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── 5. What to do next (spec 29) ──
+    st.markdown("<div class='section-head'><span>What to do next</span><div class='sh-line'></div></div>", unsafe_allow_html=True)
+    actions = triage_result["actions"]
+    a1, a2, a3 = st.columns(3)
+    with a1:
+        st.markdown("**For now**")
+        for item in actions["for_now"]:
+            st.write(f"- {item}")
+    with a2:
+        st.markdown("**Consider medical evaluation if**")
+        for item in actions["consider"]:
+            st.write(f"- {item}")
+    with a3:
+        st.markdown("**Seek urgent help if**")
+        for item in actions["urgent"]:
+            st.write(f"- {item}")
+
+    # ── 6. Why this result (spec 28) ──
+    with st.expander("How Aarogya AI reached this assessment"):
+        st.markdown("**1. Symptoms considered**")
+        st.write(", ".join(entities["symptoms"]) or "None reliably identified")
+        st.markdown("**2. Context applied**")
+        st.write(f"Age {st.session_state.intake['age']} · "
+                 f"Readings: heart rate {st.session_state.intake['vitals']['hr']}, "
+                 f"blood pressure {st.session_state.intake['vitals']['bp']}, "
+                 f"oxygen {st.session_state.intake['vitals']['spo2']}%, "
+                 f"temperature {st.session_state.intake['vitals']['temp']} C, "
+                 f"glucose {st.session_state.intake['vitals']['glucose']} mg/dL")
+        st.markdown("**3. Warning signs checked**")
+        st.write("Detected: " + (", ".join(flag["label"] for flag in red_flags) if red_flags else "none"))
+        st.markdown("**4. Where the ranking comes from**")
+        st.write("The trained classifier produces the ranked list above. Urgency is decided separately by "
+                 "deterministic safety rules, so a model score can never lower the urgency level.")
+
+    st.markdown("<div class='disclaimer-box'><p>Aarogya AI provides health information and guidance, not "
+                "medical diagnosis or emergency care. Always seek professional medical advice when appropriate.</p></div>",
+                unsafe_allow_html=True)
+
     st.write("---")
-    
+
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Condition ranking", 
         "What influenced it", 
