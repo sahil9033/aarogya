@@ -1,11 +1,7 @@
-streamlit
-pandas
-numpy<2.0.0
-scikit-learn==1.6.1
-joblib==1.3.2
-plotly
-shap
-matplotlib
-seaborn
-openpyxl
-fpdf2
+# Dependency entry point for the repository root.
+#
+# The Streamlit prototype was retired in favour of the FastAPI service in
+# backend/, which also serves the frontend in frontend/. Keeping a single
+# dependency list means the build cannot drift between the two locations --
+# a stale duplicate list is how deployments end up installing the wrong stack.
+-r backend/requirements.txt

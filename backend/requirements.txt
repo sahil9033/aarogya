@@ -1,6 +1,21 @@
+# --- Web framework -----------------------------------------------------------
 fastapi
-uvicorn
-pandas
-numpy
-scikit-learn
-joblib
+uvicorn[standard]
+
+# --- Contracts ---------------------------------------------------------------
+pydantic>=2.6
+pydantic-settings>=2.2
+email-validator
+
+# --- Persistence -------------------------------------------------------------
+sqlalchemy[asyncio]>=2.0
+aiosqlite
+# Postgres is optional: without DATABASE_URL the service runs on SQLite.
+asyncpg; platform_python_implementation == "CPython"
+pgvector
+
+# --- Cache -------------------------------------------------------------------
+redis>=5.0
+
+# --- Outbound HTTP (LLM + provider embeddings) -------------------------------
+httpx

@@ -1,20 +1,45 @@
+# Render blueprint for the Aarogya Clinical Intelligence service.
+#
+# The safety-critical path -- red-flag screening and triage -- is deterministic
+# and dependency-free, so this service must be able to start with no database,
+# no cache and no model API key. Postgres/pgvector, Redis and an LLM key are
+# refinements, not prerequisites, which is why they are declared `sync: false`
+# rather than provisioned here.
+#
+# Deploy with: New + > Blueprint > point at this repository.
+
 services:
   - type: web
-    name: clinic-ai-backend
-    env: python
-    buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && python main.py"
+    name: aarogya-clinical-ai
+    runtime: python
+    plan: free
+    # Run from the repository root so that frontend/ resolves, then hand over
+    # to the backend package.
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.0
+        value: "3.11.9"
+      - key: ENVIRONMENT
+        value: production
+      # Signs API tokens. Generated rather than hard-coded so no deployment
+      # ever shares the development default.
+      - key: SECRET_KEY
+        generateValue: true
+
+      # --- Optional integrations -------------------------------------------
+      # Unset DATABASE_URL  -> SQLite file inside the container.
+      # Unset REDIS_URL     -> in-process cache.
+      # Unset the LLM keys  -> deterministic, template-based narration.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
-
-  - type: web
-    name: clinic-ai-streamlit
-    env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "streamlit run app.py --server.port $PORT"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.0
+      - key: OPENAI_API_KEY
+        sync: false
+      # Set to a comma-separated list to require X-API-Key on knowledge writes.
+      - key: API_KEYS
+        sync: false

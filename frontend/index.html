@@ -1,126 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinic AI</title>
-    <!-- Use Inter font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aarogya — Clinical Intelligence</title>
+<meta name="description" content="A deterministic, auditable symptom assessment. Safety screening and triage are rule-based and never depend on a trained model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Top Navigation -->
-        <header class="topbar">
-            <div class="brand">
-                <div class="logo">
-                    <h1>clinic ai</h1>
-                </div>
-            </div>
-            <nav class="nav-menu">
-                <a href="#" class="nav-item active">Home</a>
-                <a href="#" class="nav-item">Symptoms</a>
-                <a href="#" class="nav-item">Reports</a>
-                <a href="#" class="nav-item">History</a>
-                <a href="#" class="nav-item">Guide</a>
-            </nav>
-            <div class="header-actions">
-                <a href="#" class="btn-pill btn-dark">Log In</a>
-                <a href="#" class="btn-pill btn-light">Contact Us</a>
-            </div>
-        </header>
+<div class="mesh" aria-hidden="true"></div>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="hero-section">
-                <div class="flourish">
-                    <svg viewBox="0 0 100 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M10 10C30 5 70 5 90 10" stroke="white" stroke-width="0.5" stroke-linecap="round"/>
-                        <path d="M20 15C40 10 60 10 80 15" stroke="white" stroke-width="0.5" stroke-linecap="round"/>
-                        <circle cx="50" cy="5" r="1" fill="white"/>
-                    </svg>
-                </div>
-                <div class="eyebrow">Aarogya · AI-assisted symptom check-in</div>
-                <h1 class="main-headline">Clinical AI for everyone.</h1>
-                <p class="description">Built on frontier-class medical models. Delivering population-scale health impact. Describe your symptoms to get started.</p>
-                <div class="hero-actions">
-                    <a href="#symptom-input" class="btn-pill btn-light" style="margin-right: 12px;">Get Started</a>
-                    <a href="#" class="btn-pill btn-dark">Learn More</a>
-                </div>
-            </div>
+<div class="shell">
 
-            <div class="input-section">
-                <div class="input-container">
-                    <textarea id="symptom-input" placeholder="Tell us what you're experiencing in your own words..."></textarea>
-                    <div class="input-actions">
-                        <span class="input-hint">Add symptoms or choose below</span>
-                        <button class="submit-btn" id="submit-btn" type="button" aria-label="Analyze symptoms">
-                            <i class="fa-solid fa-arrow-up"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <details class="vitals-panel">
-                    <summary>Measurements & Report Context <span>(Optional)</span></summary>
-                    <div class="vitals-grid">
-                        <label>Age <input id="age" type="number" min="1" max="120" value="30"></label>
-                        <label>Heart rate <input id="hr" type="number" min="20" max="260" value="72"></label>
-                        <label>Blood pressure <input id="bp" type="number" min="50" max="250" value="120"></label>
-                        <label>Oxygen level <input id="spo2" type="number" min="50" max="100" value="98"></label>
-                        <label>Temperature °C <input id="temp" type="number" min="30" max="45" step="0.1" value="37"></label>
-                        <label>Glucose <input id="glucose" type="number" min="20" max="800" value="90"></label>
-                    </div>
-                </details>
-
-                <div class="quick-symptoms">
-                    <button class="symptom-pill" data-symptom="Fever">Fever</button>
-                    <button class="symptom-pill" data-symptom="Headache">Headache</button>
-                    <button class="symptom-pill" data-symptom="Stomach pain">Stomach pain</button>
-                    <button class="symptom-pill" data-symptom="Cough">Cough</button>
-                    <button class="symptom-pill" data-symptom="Skin rash">Skin rash</button>
-                </div>
-            </div>
-
-            <p id="form-error" class="form-error hidden" role="alert"></p>
-
-            <div id="loading-indicator" class="loading-indicator hidden" role="status" aria-live="polite">
-                <div class="spinner"></div>
-                <p>Analyzing symptoms...</p>
-            </div>
-
-            <div id="results-section" class="results-section hidden" aria-live="polite">
-                <div id="urgency-banner" class="urgency-banner hidden"></div>
-                <div class="result-cards">
-                    <div class="card causes-card">
-                        <div class="card-icon"><i class="fa-solid fa-chart-simple"></i></div>
-                        <h3>Possible Causes</h3>
-                        <p id="res-causes"></p>
-                        <p id="res-alternatives" class="alternatives"></p>
-                    </div>
-                    
-                    <div class="card steps-card">
-                        <div class="card-icon"><i class="fa-solid fa-clipboard-list"></i></div>
-                        <h3>Next Steps</h3>
-                        <ul id="res-steps"></ul>
-                    </div>
-                    
-                    <div class="card care-card">
-                        <div class="card-icon"><i class="fa-regular fa-user"></i></div>
-                        <h3>When to Seek Care</h3>
-                        <ul id="res-care"></ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bottom-words">
-                CLINIC AI BUILDS WITH PRIDE
-            </div>
-        </main>
+  <header class="masthead">
+    <div class="wordmark">
+      <span class="name">Aarogya</span>
+      <span class="tag">Clinical Intelligence</span>
     </div>
-    
-    <script src="app.js"></script>
+    <div class="masthead-right">
+      <span class="status-pill" id="status-pill">
+        <span class="status-dot"></span>
+        <span id="status-text">Connecting…</span>
+      </span>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <p class="eyebrow">Symptom assessment · Not a diagnosis</p>
+    <h1 class="display">Understand what your body is <em>telling you</em>.</h1>
+    <p class="lede">
+      Describe what you are experiencing in your own words. Aarogya screens for warning
+      signs first, then ranks the common conditions that fit your picture and tells you
+      how urgently to seek care.
+    </p>
+    <div class="hero-meta">
+      <span>Rule-based safety screening</span>
+      <span>No false-precision percentages</span>
+      <span>Band-based likelihood</span>
+    </div>
+  </section>
+
+  <!-- ============================ STAGE 1 — INTAKE ============================ -->
+  <main id="intake-stage">
+    <div class="section-head"><span>Step 1 · Your symptoms</span></div>
+
+    <form class="panel" id="intake-form" novalidate>
+      <p class="panel-label">In your own words</p>
+      <h2 class="panel-title">What have you been experiencing?</h2>
+      <p class="panel-copy">
+        Include when it started, what makes it worse, and anything you have already ruled
+        out. There is no wrong way to describe it.
+      </p>
+
+      <div class="field">
+        <label for="symptom-text">Your description</label>
+        <textarea id="symptom-text" name="symptom_text" required
+          placeholder="Example: I've had a fever since yesterday evening, a dry cough, and I feel unusually tired. No chest pain."></textarea>
+        <p class="note">Saying what you <em>don't</em> have is useful — Aarogya records it and reasons with it.</p>
+      </div>
+
+      <div class="field">
+        <label>Common symptoms <span class="hint">— tap any that apply</span></label>
+        <div class="chips" id="symptom-chips"></div>
+      </div>
+
+      <div class="section-head" style="margin:34px 0 18px"><span>Optional context</span></div>
+
+      <div class="field">
+        <label>Recent measurements <span class="hint">— only if you have them</span></label>
+        <div class="vitals-grid">
+          <div><label for="age" class="sr-only">Age</label>
+            <input id="age" type="number" min="0" max="130" placeholder="Age (years)"></div>
+          <div><label for="heart-rate" class="sr-only">Heart rate</label>
+            <input id="heart-rate" type="number" min="20" max="300" placeholder="Heart rate (bpm)"></div>
+          <div><label for="systolic-bp" class="sr-only">Systolic blood pressure</label>
+            <input id="systolic-bp" type="number" min="40" max="300" placeholder="Systolic BP (mmHg)"></div>
+          <div><label for="spo2" class="sr-only">Blood oxygen</label>
+            <input id="spo2" type="number" min="40" max="100" placeholder="Oxygen SpO₂ (%)"></div>
+          <div><label for="temperature" class="sr-only">Temperature</label>
+            <input id="temperature" type="number" min="25" max="45" step="0.1" placeholder="Temperature (°C)"></div>
+          <div><label for="glucose" class="sr-only">Blood glucose</label>
+            <input id="glucose" type="number" min="10" max="1500" placeholder="Glucose (mg/dL)"></div>
+        </div>
+        <p class="note">
+          Measurements sharpen the safety screen. Leave any field empty and it is treated as
+          not measured rather than as a normal reading.
+        </p>
+      </div>
+
+      <div class="field" style="margin-bottom:0">
+        <label for="display-name">Name <span class="hint">— optional, only used to label your report</span></label>
+        <input id="display-name" type="text" maxlength="120" placeholder="e.g. Sahil">
+      </div>
+
+      <p class="form-error hidden" id="form-error" role="alert"></p>
+
+      <div style="margin-top:26px">
+        <button class="btn btn-dark btn-block" type="submit" id="intake-submit">Continue</button>
+      </div>
+    </form>
+
+    <p class="footnote">
+      If you are severely unwell right now — struggling to breathe, chest pain, confusion,
+      or a sudden severe headache — do not use this tool. Contact your local emergency
+      service immediately.
+    </p>
+  </main>
+
+  <!-- =========================== STAGE 2 — QUESTIONS ========================== -->
+  <main id="questions-stage" class="hidden">
+    <div class="section-head"><span>Step 2 · A few follow-up questions</span></div>
+
+    <form class="panel" id="questions-form">
+      <p class="panel-label">Selected for you</p>
+      <h2 class="panel-title">We need a little more detail</h2>
+      <p class="panel-copy">
+        These are chosen from the symptoms you reported, so only the relevant ones appear.
+      </p>
+      <div id="questions-body"></div>
+      <div style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap">
+        <button class="btn btn-dark" type="submit" id="questions-submit" style="flex:1">See my assessment</button>
+        <button class="btn btn-quiet" type="button" id="questions-back">Back</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- ============================ STAGE 3 — RESULTS =========================== -->
+  <main id="results-stage" class="hidden" aria-live="polite">
+    <div id="results-content"></div>
+
+    <div class="section-head"><span>Ask Aarogya</span></div>
+    <section class="panel" id="chat-panel">
+      <p class="panel-label">Grounded follow-up</p>
+      <h2 class="panel-title">Questions about your result?</h2>
+      <p class="panel-copy">
+        Answers are limited to your own assessment and the reference material on file.
+        Aarogya will say it does not know rather than guess.
+      </p>
+      <div class="chat-log" id="chat-log"></div>
+      <p class="typing hidden" id="chat-typing">Thinking…</p>
+      <form class="chat-form" id="chat-form">
+        <label class="sr-only" for="chat-input">Your question</label>
+        <input id="chat-input" type="text" maxlength="2000" placeholder="e.g. What should I watch for over the next 24 hours?">
+        <button class="btn btn-dark" type="submit" id="chat-submit">Ask</button>
+      </form>
+    </section>
+
+    <div style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-quiet" type="button" id="start-over">Start a new assessment</button>
+    </div>
+  </main>
+
+  <footer class="footnote" id="site-disclaimer">
+    Aarogya provides health information and guidance, not medical diagnosis or emergency
+    care. It does not replace a clinician.
+  </footer>
+
+</div>
+
+<script src="/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,49 @@
+# Optional local infrastructure for the Aarogya backend.
+#
+# Neither service is required: with no DATABASE_URL the API runs on SQLite, and
+# with no REDIS_URL it uses an in-process cache with the same interface. Start
+# these when you want to exercise the real Postgres + pgvector and Redis paths.
+#
+#   docker compose up -d
+#
+# Then, from the backend directory:
+#
+#   $env:DATABASE_URL="postgresql+asyncpg://aarogya:aarogya@localhost:5432/aarogya"
+#   $env:REDIS_URL="redis://localhost:6379/0"
+#   uvicorn app.main:app --reload
+#
+# init_db() creates the schema and runs CREATE EXTENSION IF NOT EXISTS vector on
+# first start, so no manual migration step is needed.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aarogya-postgres
+    environment:
+      POSTGRES_USER: aarogya
+      POSTGRES_PASSWORD: aarogya
+      POSTGRES_DB: aarogya
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aarogya -d aarogya"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: aarogya-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

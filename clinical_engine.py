@@ -50,6 +50,19 @@ SYMPTOM_LEXICON = {
     "numbness": ("numbness", "numb", "tingling", "pins and needles"),
     "confusion": ("confusion", "confused", "disoriented", "cannot think clearly"),
     "palpitations": ("palpitations", "racing heart", "heart pounding"),
+    "runny nose": ("runny nose", "runny nose", "nose running", "rhinorrhea"),
+    "sneezing": ("sneezing", "sneeze", "sneezing fits"),
+    "nasal congestion": ("nasal congestion", "blocked nose", "stuffy nose", "congestion"),
+    "facial pain": ("facial pain", "face pain", "sinus pain", "pain around my eyes"),
+    "itchy eyes": ("itchy eyes", "watery eyes", "eye itching"),
+    "wheezing": ("wheezing", "wheeze", "whistling breath"),
+    "burning urination": ("burning urination", "painful urination", "burning when i pee",
+                          "dysuria", "stinging when urinating"),
+    "constipation": ("constipation", "constipated", "cannot pass stool"),
+    "back pain": ("back pain", "backache", "lower back pain"),
+    "mild fever": ("mild fever", "low grade fever", "slight fever", "low-grade fever"),
+    "high fever": ("high fever", "very high fever", "temperature of 103", "temperature of 104",
+                   "temperature of 102"),
 }
 
 NEGATION_PATTERN = r"no|not|without|denies|denied|never|negative for|free of|haven't had|didn't have"
@@ -227,13 +240,158 @@ def screen_red_flags(text: str, vitals: dict | None = None) -> list[dict]:
 # ---------------------------------------------------------------------------
 # 3. DIFFERENTIAL ENGINE  (spec 19-21)
 # ---------------------------------------------------------------------------
+#
+# WHY THIS IS RULE-BASED AND NOT A CLASSIFIER
+#
+# The trained classifier originally shipped with this project was removed from
+# the user-facing path. Validation showed it returned 100% accuracy on its own
+# training rows while its top guess for a fever-and-cough presentation was
+# "Bronchial Asthma", and its output universe included AIDS and Hepatitis D.
+# Mean top-class confidence on data it had memorised was 0.49. It was a lookup
+# table over a degenerate dataset, not a clinical model.
+#
+# What replaces it is deliberately modest and inspectable: for a short list of
+# COMMON, well-documented presentations, we measure how well each one accounts
+# for the symptoms the user actually reported.
+#
+# The symptom associations below are standard textbook pictures of common
+# conditions. They are NOT a clinical decision rule, NOT diagnostic, and they
+# do not encode prevalence, age, sex, duration or severity weighting. A real
+# system would source these from validated clinical guidance and an
+# epidemiologically sound dataset. Treat every entry as a starting point for a
+# clinician, never as an answer.
+#
+# Scope is intentionally restricted to common presentations. Severe, rare or
+# stigmatised conditions are omitted on purpose: a symptom checker that
+# volunteers "AIDS" as a possible cause of a cough causes real harm.
+
+CONDITION_KNOWLEDGE = {
+    "Common cold": {
+        "category": "Upper respiratory",
+        "typical": ["runny nose", "sneezing", "sore throat", "cough", "nasal congestion"],
+        "supportive": ["headache", "fatigue", "mild fever"],
+        "against": ["shortness of breath", "chest pain", "high fever"],
+    },
+    "Influenza-like illness": {
+        "category": "Systemic viral",
+        "typical": ["fever", "body ache", "headache", "fatigue", "cough"],
+        "supportive": ["sore throat", "chills", "joint pain", "loss of appetite"],
+        "against": ["rash"],
+    },
+    "Viral upper respiratory infection": {
+        "category": "Upper respiratory",
+        "typical": ["sore throat", "cough", "runny nose", "fever"],
+        "supportive": ["headache", "fatigue", "sneezing"],
+        "against": ["chest pain"],
+    },
+    "Acute sinusitis": {
+        "category": "Upper respiratory",
+        "typical": ["facial pain", "nasal congestion", "headache", "sore throat"],
+        "supportive": ["fever", "cough", "loss of appetite"],
+        "against": ["shortness of breath"],
+    },
+    "Allergic rhinitis": {
+        "category": "Allergic",
+        "typical": ["sneezing", "runny nose", "itchy eyes", "nasal congestion"],
+        "supportive": ["cough", "fatigue", "rash"],
+        "against": ["high fever", "body ache"],
+    },
+    "Acute bronchitis": {
+        "category": "Lower respiratory",
+        "typical": ["cough", "productive cough", "chest pain", "fatigue"],
+        "supportive": ["fever", "sore throat", "shortness of breath"],
+        "against": ["rash"],
+    },
+    "Community-acquired pneumonia": {
+        "category": "Lower respiratory",
+        "typical": ["fever", "cough", "productive cough", "shortness of breath", "chest pain"],
+        "supportive": ["chills", "fatigue", "loss of appetite", "confusion"],
+        "against": [],
+    },
+    "Asthma exacerbation": {
+        "category": "Lower respiratory",
+        "typical": ["shortness of breath", "wheezing", "cough", "chest pain"],
+        "supportive": ["fatigue", "night sweats"],
+        "against": ["high fever", "productive cough"],
+    },
+    "Acute gastroenteritis": {
+        "category": "Gastrointestinal",
+        "typical": ["diarrhea", "vomiting", "abdominal pain", "nausea"],
+        "supportive": ["fever", "loss of appetite", "fatigue", "body ache"],
+        "against": ["chest pain", "shortness of breath"],
+    },
+    "Migraine": {
+        "category": "Neurological",
+        "typical": ["headache", "nausea", "light sensitivity", "vomiting"],
+        "supportive": ["blurred vision", "dizziness", "fatigue"],
+        "against": ["high fever", "rash", "diarrhea"],
+    },
+    "Tension-type headache": {
+        "category": "Neurological",
+        "typical": ["headache", "fatigue", "joint pain"],
+        "supportive": ["dizziness", "loss of appetite"],
+        "against": ["high fever", "vomiting", "light sensitivity"],
+    },
+    "Urinary tract infection": {
+        "category": "Genitourinary",
+        "typical": ["burning urination", "abdominal pain", "fever"],
+        "supportive": ["fatigue", "nausea", "confusion"],
+        "against": ["cough", "runny nose", "sneezing"],
+    },
+    "Dengue-like febrile illness": {
+        "category": "Vector-borne febrile",
+        "typical": ["fever", "joint pain", "body ache", "headache", "rash"],
+        "supportive": ["nausea", "vomiting", "loss of appetite", "fatigue"],
+        "against": ["runny nose", "sneezing"],
+        "note": "Confirming or excluding this requires a blood test. Symptoms overlap heavily with other febrile illnesses.",
+    },
+    "Malaria-like febrile illness": {
+        "category": "Vector-borne febrile",
+        "typical": ["fever", "chills", "night sweats", "headache", "body ache"],
+        "supportive": ["nausea", "vomiting", "fatigue", "joint pain"],
+        "against": ["runny nose", "sneezing"],
+        "note": "Confirming or excluding this requires a blood test. Symptoms overlap heavily with other febrile illnesses.",
+    },
+    "Enteric (typhoid-like) fever": {
+        "category": "Vector-borne febrile",
+        "typical": ["fever", "abdominal pain", "loss of appetite", "headache"],
+        "supportive": ["constipation", "diarrhea", "fatigue", "body ache"],
+        "against": ["runny nose", "sneezing"],
+        "note": "Confirming or excluding this requires a blood test. Symptoms overlap heavily with other febrile illnesses.",
+    },
+    "Iron deficiency anaemia": {
+        "category": "Haematological",
+        "typical": ["fatigue", "shortness of breath", "dizziness", "palpitations"],
+        "supportive": ["headache", "loss of appetite"],
+        "against": ["high fever", "rash"],
+    },
+    "Anxiety-related physical symptoms": {
+        "category": "Psychological",
+        "typical": ["palpitations", "shortness of breath", "dizziness", "chest pain"],
+        "supportive": ["fatigue", "headache", "nausea", "night sweats"],
+        "against": ["high fever", "rash", "diarrhea"],
+        "note": "Physical symptoms need physical assessment first. This is not a diagnosis of exclusion.",
+    },
+    "Musculoskeletal strain": {
+        "category": "Musculoskeletal",
+        "typical": ["joint pain", "body ache", "back pain"],
+        "supportive": ["fatigue", "headache"],
+        "against": ["high fever", "vomiting", "diarrhea"],
+    },
+    "Medication-related reaction": {
+        "category": "Adverse effect",
+        "typical": ["rash", "nausea", "dizziness", "fatigue"],
+        "supportive": ["vomiting", "diarrhea", "headache"],
+        "against": [],
+    },
+}
 
 # Coarse, user-facing likelihood bands. The spec explicitly forbids showing
 # false precision such as "87.42% chance".
 BANDS = (
-    (0.55, "More likely"),
-    (0.20, "Possible"),
-    (0.08, "Less likely"),
+    (0.60, "More likely"),
+    (0.35, "Possible"),
+    (0.15, "Less likely"),
     (0.0,  "Cannot rule out"),
 )
 
@@ -245,43 +403,85 @@ def _band_for(score: float) -> str:
     return "Cannot rule out"
 
 
-def _condition_label(condition: str) -> str:
-    """Turn a model class such as 'viral_upper_respiratory_infection' into a title."""
-    text = str(condition).replace("_", " ").strip()
-    return text.title() if text else str(condition)
+def _expected_for(condition: str, kind: str) -> set[str]:
+    """Expand a condition's expected symptoms using the shared synonym lexicon."""
+    expanded: set[str] = set()
+    for symptom in CONDITION_KNOWLEDGE[condition][kind]:
+        expanded.add(symptom)
+        for canonical, synonyms in SYMPTOM_LEXICON.items():
+            if symptom == canonical or symptom in synonyms:
+                expanded.add(canonical)
+    return expanded
 
 
-def build_differential(prob_array, label_encoder, entities: dict, top_k: int = 4) -> list[dict]:
+def build_differential(entities: dict, vitals: dict | None = None, top_k: int = 4) -> list[dict]:
     """
-    Rank candidate explanations from the model's own output.
+    Rank common conditions by how much of the user's picture each one explains.
 
-    The model supplies the ranking. Supporting evidence is drawn only from
-    symptoms the user actually reported, so nothing is invented.
+    ``vitals`` is accepted for future use (for example, discarding a condition
+    that requires a fever the patient demonstrably does not have). It is not
+    consulted yet, but keeping it in the signature means callers do not need to
+    change when that rule is added.
+
+    Scoring is a transparent coverage heuristic combining two questions:
+
+    * How much of this condition's usual picture is present? (coverage)
+    * How much of what the user reported does this condition account for?
+      (explanatory reach)
+
+    A condition that contradicts reported symptoms is penalised. The result is
+    a ranking of *fit*, not a probability. Nothing here estimates how likely a
+    condition actually is, because that would require prevalence data this
+    system does not have.
     """
-    import numpy as np
+    reported = {str(item).lower() for item in entities.get("symptoms", [])}
+    denied = {str(item).lower() for item in entities.get("explicitly_denied", [])}
 
-    probabilities = np.asarray(prob_array, dtype=float).flatten()
-    classes = list(getattr(label_encoder, "classes_", range(len(probabilities))))
-    order = np.argsort(probabilities)[::-1][:top_k]
+    if not reported:
+        return []
 
-    reported = entities.get("symptoms", [])
-    missing = entities.get("missing_information", [])
+    candidates: list[dict] = []
+    for condition, knowledge in CONDITION_KNOWLEDGE.items():
+        typical = _expected_for(condition, "typical")
+        supportive = _expected_for(condition, "supportive")
+        against = _expected_for(condition, "against")
 
-    candidates = []
-    for position, index in enumerate(order, start=1):
-        raw = str(classes[index]) if index < len(classes) else f"Category {index}"
-        score = float(probabilities[index])
+        matched_typical = reported & typical
+        matched_supportive = reported & supportive
+        contradicted = (reported & against) | (denied & typical)
+
+        if not matched_typical and not matched_supportive:
+            continue
+
+        coverage = (len(matched_typical) + 0.4 * len(matched_supportive)) / max(len(typical), 1)
+        reach = len(matched_typical | matched_supportive) / len(reported)
+
+        # Coverage carries most of the weight: matching a condition's distinctive
+        # picture matters more than loosely touching one shared symptom.
+        score = (0.6 * coverage) + (0.4 * reach)
+
+        # Any contradiction pushes the condition down rather than deleting it.
+        score *= max(0.15, 1.0 - 0.35 * len(contradicted))
+
         candidates.append({
-            "rank": position,
-            "raw_condition": raw,
-            "condition": _condition_label(raw),
+            "condition": condition,
+            "category": knowledge["category"],
             "band": _band_for(score),
-            "supporting": reported,
-            "against": entities.get("explicitly_denied", []),
-            "missing": missing,
-            "score": score,
+            "score": round(score, 4),
+            "supporting": sorted(matched_typical | matched_supportive),
+            "against": sorted(contradicted),
+            "missing": [item.replace("_", " ") for item in sorted(typical - reported)][:3],
+            "note": knowledge.get("note"),
         })
-    return candidates
+
+    candidates.sort(key=lambda item: (-item["score"], item["condition"]))
+
+    results = []
+    for position, candidate in enumerate(candidates[:top_k], start=1):
+        candidate["rank"] = position
+        results.append(candidate)
+    return results
+
 
 
 # ---------------------------------------------------------------------------
@@ -505,15 +705,15 @@ def triage(red_flags: list[dict], entities: dict, vitals: dict | None = None,
 # 7. CONVENIENCE ENTRY POINT
 # ---------------------------------------------------------------------------
 
-def run_assessment_pipeline(text: str, selected_symptoms, vitals: dict,
-                            prob_array, label_encoder, answers: dict | None = None) -> dict:
+def run_assessment_pipeline(text: str, selected_symptoms, vitals: dict | None = None,
+                            answers: dict | None = None) -> dict:
     """Run every deterministic stage and return one assessment object."""
     entities = extract_clinical_entities(text, selected_symptoms)
     red_flags = screen_red_flags(text, vitals)
     entities["missing_information"] = [
         question["question"] for question in adaptive_questions(entities)
     ]
-    candidates = build_differential(prob_array, label_encoder, entities)
+    candidates = build_differential(entities, vitals)
     uncertainty = uncertainty_message(entities, candidates)
     triage_result = triage(red_flags, entities, vitals, answers)
 
